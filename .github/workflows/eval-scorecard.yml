@@ -51,8 +51,18 @@ jobs:
           AGENT_JUDGE_MODEL:      ${{ secrets.AGENT_JUDGE_MODEL || 'claude-sonnet-4-6' }}
           AGENT_PHOENIX_ENDPOINT: ${{ secrets.AGENT_PHOENIX_ENDPOINT || '' }}
           AGENT_OWNER_ID:         ${{ secrets.AGENT_OWNER_ID || 'ci@agenticframework' }}
-        # exit 2 = <3 golden cases → skip gracefully (not a failure)
-        run: python3 scripts/run-evals.py --fail-below 0.80
+        # exit 2 = <3 golden cases OR all cases failed due to API errors
+        # (e.g. Groq 429, missing key) → skip gracefully, not a CI failure.
+        run: |
+          set +e
+          python3 scripts/run-evals.py --fail-below 0.80
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "ℹ️  Eval scorecard skipped (exit 2) — too few cases or all API errors."
+            exit 0
+          fi
+          exit "$code"
 
       - name: Upload eval results
         if: always()
