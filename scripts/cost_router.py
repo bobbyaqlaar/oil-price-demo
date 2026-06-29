@@ -7,9 +7,9 @@ Routing logic:
   3. Network availability (via network_watchdog)
 
 Route table (overridable via env vars):
-  AGENT_MODEL_ARCHITECT   default: claude-3-5-sonnet-20241022
+  AGENT_MODEL_ARCHITECT   default: claude-sonnet-4-6
   AGENT_MODEL_COMPLEX     default: gpt-4o
-  AGENT_MODEL_STANDARD    default: meta-llama/Llama-3-70b (Groq / Ollama)
+  AGENT_MODEL_STANDARD    default: llama-3.3-70b-versatile (Groq / Ollama)
   AGENT_MODEL_FAST        default: gemma2 (Ollama local)
   AGENT_MODEL_LOCAL       default: llama3 (Ollama fallback)
 
@@ -25,9 +25,9 @@ from typing import Optional
 
 # ── Model config ──────────────────────────────────────────────────────────────
 
-MODEL_ARCHITECT = os.environ.get("AGENT_MODEL_ARCHITECT", "claude-3-5-sonnet-20241022")
+MODEL_ARCHITECT = os.environ.get("AGENT_MODEL_ARCHITECT", "claude-sonnet-4-6")
 MODEL_COMPLEX   = os.environ.get("AGENT_MODEL_COMPLEX",   "gpt-4o")
-MODEL_STANDARD  = os.environ.get("AGENT_MODEL_STANDARD",  "llama3-70b-8192")   # Groq id
+MODEL_STANDARD  = os.environ.get("AGENT_MODEL_STANDARD",  "llama-3.3-70b-versatile")   # Groq id
 MODEL_FAST      = os.environ.get("AGENT_MODEL_FAST",      "gemma2")             # Ollama
 MODEL_LOCAL     = os.environ.get("AGENT_MODEL_LOCAL",     "llama3")             # Ollama fallback
 
@@ -286,7 +286,7 @@ def call(
         try:
             from circuit_breaker import audit_token_velocity_circuit
             audit_token_velocity_circuit(in_tok, out_tok)
-        except Exception:
+        except Exception:  # noqa: bare-except — circuit breaker is a side-effect check after a successful call; the call's own errors are handled by the outer except below, not this one
             pass
 
         record_success(route_result.model)

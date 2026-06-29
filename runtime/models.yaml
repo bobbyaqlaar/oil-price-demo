@@ -14,7 +14,9 @@
 #                 when a tenant has its own key under a different var name
 #
 # Note: endpoint/api_key_env above only cover "same request/response shape,
-# different host or key" cases (direct anthropic/openai/ollama).
+# different host or key" cases (direct anthropic/openai/ollama/groq —
+# provider: groq defaults to https://api.groq.com/openai/v1 + GROQ_API_KEY,
+# same OpenAI-compatible request/response shape as openai/ollama).
 #
 # Cloud-native hosting has its own auth + envelope shape per provider,
 # handled by a CloudProviderAdapter in runtime/provider_dispatch.py
@@ -87,6 +89,24 @@ models:
     provider: anthropic
     cost_per_input_token: 0.00000025
     cost_per_output_token: 0.00000125
+    degrade_to: groq_fast
+
+  # ── Groq (cheap/fast cloud tier, ahead of local Ollama in the degrade
+  # ladder) ────────────────────────────────────────────────────────────────────
+  # Groq's OpenAI-compatible API — handled by llm_gateway.py's `provider:
+  # groq` branch (base_url https://api.groq.com/openai/v1, api_key_env
+  # defaults to GROQ_API_KEY). Sits between validator and the local Ollama
+  # tier: cheaper/faster than validator's direct-API call, but still a real
+  # cloud model (no quality cliff) rather than dropping straight to local —
+  # only falls through to local_large if GROQ_API_KEY is unset/invalid or
+  # Groq itself is exhausted (rate-limited/billing), via the same
+  # provider-exhaustion degrade logic as every other tier. cost_per_*_token
+  # are placeholders — confirm against Groq's current pricing page.
+  groq_fast:
+    id: llama-3.3-70b-versatile
+    provider: groq
+    cost_per_input_token: 0.00000059
+    cost_per_output_token: 0.00000079
     degrade_to: local_large
 
   # ── Local Ollama tier ────────────────────────────────────────────────────────

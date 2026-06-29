@@ -506,7 +506,7 @@ class LLMGateway:
                 span.set_attribute("llm.gateway.degrade_reason", degrade_tier)
             if workflow_id:
                 span.set_attribute("workflow.id", workflow_id)
-        except Exception:
+        except Exception:  # noqa: bare-except — tracing must never break the actual LLM call
             pass
 
     # ── Completion ────────────────────────────────────────────────────────────
@@ -750,6 +750,14 @@ class LLMGateway:
                 if not base_url.startswith("http"):
                     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434") + "/v1"
                 api_key = "ollama"
+            elif provider == "groq":
+                # Groq's API is OpenAI-compatible (same request/response shape,
+                # parse_response's non-anthropic branch handles it) — only the
+                # host and API key env var differ from direct OpenAI, same as
+                # every other "openai_compatible" provider in this codebase.
+                api_key_env = cfg.get("api_key_env", "GROQ_API_KEY")
+                api_key = os.environ.get(api_key_env, "")
+                base_url = cfg.get("endpoint") or "https://api.groq.com/openai/v1"
             else:
                 api_key_env = cfg.get("api_key_env", "OPENAI_API_KEY")
                 api_key = os.environ.get(api_key_env, "")
