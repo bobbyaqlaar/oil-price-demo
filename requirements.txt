@@ -1,0 +1,19 @@
+# oil-price-demo/requirements.txt — repo-root requirements for CI/CD.
+#
+# Exists primarily so actions/setup-python's cache: "pip" step has a file
+# to hash for its cache key (it errors without one). Union of the worker's
+# own deps (runtime/requirements-runtime.txt) and the eval/CI tooling deps
+# cd-staging.yml/cd-production.yml separately pip-install in their "Install
+# framework dependencies" step.
+
+-r runtime/requirements-runtime.txt
+
+arize-phoenix>=4.0
+openinference-instrumentation-openai>=0.1.4
+opentelemetry-sdk>=1.20
+opentelemetry-exporter-otlp-proto-http>=1.20
+networkx>=3.0
+tiktoken>=0.5
+langchain-core>=0.2
+langchain-openai>=0.1
+langchain-anthropic>=0.1
