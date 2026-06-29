@@ -114,7 +114,19 @@ jobs:
         env:
           DATABASE_URL: "postgresql+asyncpg://test:test@localhost:5432/test"
           ENVIRONMENT:  "testing"
-        run: pytest --cov --cov-report=xml -q
+        # pytest exits 5 ("no tests collected") on a brand-new project
+        # scaffolded by ai-tenant-init before anyone has written a test
+        # yet — that's an expected day-one state, not a CI failure; any
+        # other non-zero exit (an actual test failure, a collection error)
+        # still fails the job.
+        run: |
+          pytest --cov --cov-report=xml -q
+          code=$?
+          if [ "$code" -eq 5 ]; then
+            echo "ℹ️  No tests collected yet — not failing CI for a fresh project."
+            exit 0
+          fi
+          exit "$code"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

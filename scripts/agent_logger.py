@@ -39,10 +39,9 @@ def _project_name() -> str:
 
         remote = subprocess.check_output(
             ["git", "remote", "get-url", "origin"],
-            capture_output=True,
             text=True,
             cwd=root,
-        ).stdout.strip()
+        ).strip()
         if remote:
             return remote.rstrip("/").split("/")[-1].removesuffix(".git")
     except Exception:  # fail-open: no git remote / not a git repo / git not installed all fall back to the dir name below

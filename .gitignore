@@ -34,3 +34,5 @@ CLAUDE.md
 CLAUDE.md
 .agents/
 .agent-history.log
+.coverage
+coverage.xml

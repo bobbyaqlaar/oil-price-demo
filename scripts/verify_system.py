@@ -98,9 +98,8 @@ def run_checks() -> bool:
     try:
         configured_dir = subprocess.check_output(
             ["git", "config", "--global", "init.templateDir"],
-            capture_output=True,
             text=True,
-        ).stdout.strip()
+        ).strip()
         ok = str(template_dir) in configured_dir or configured_dir.endswith(
             ".git_templates"
         )
