@@ -118,7 +118,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
     """
     cases    = _load_golden_cases()
     criteria = _load_criteria()
-    judge    = os.environ.get("AGENT_JUDGE_MODEL", "claude-3-5-sonnet-20241022")
+    judge    = os.environ.get("AGENT_JUDGE_MODEL", "claude-sonnet-4-6")
     project  = _repo_root().name
     ts       = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -189,7 +189,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
     try:
         from notifier import notify_eval_result
         notify_eval_result(avg_score, fail_below, project=project)
-    except Exception:
+    except Exception:  # noqa: bare-except — a desktop notification failing must not affect the eval's pass/fail result
         pass
 
     return 0 if passed else 1

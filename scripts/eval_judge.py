@@ -57,6 +57,7 @@ def run_judge(prompt: str, judge_model: str) -> dict[str, Any]:
             prompt,
             system="You are a strict technical evaluator. Respond with JSON only.",
             task_type="review",
+            force_model=judge_model,
         )
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         scored = json.loads(m.group(0)) if m else {"correctness": 0, "tool_accuracy": 0, "score": 0.0}

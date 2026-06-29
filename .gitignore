@@ -9,3 +9,22 @@ CLAUDE.md
 .agents/
 .agent-history.log
 .agent-rfc/fixtures/eval_results.json
+.agent-rfc/fixtures/token_velocity_cache.json
+
+# AgentSmith — IDE configs (system prompt content)
+.cursorrules
+CLAUDE.md
+.agents/
+.agent-history.log
+
+# AgentSmith — IDE configs (system prompt content)
+.cursorrules
+CLAUDE.md
+.agents/
+.agent-history.log
+
+# AgentSmith — IDE configs (system prompt content)
+.cursorrules
+CLAUDE.md
+.agents/
+.agent-history.log

@@ -29,6 +29,13 @@ MODEL_ARCHITECT = os.environ.get("AGENT_MODEL_ARCHITECT", "claude-sonnet-4-6")
 MODEL_COMPLEX   = os.environ.get("AGENT_MODEL_COMPLEX",   "gpt-4o")
 MODEL_STANDARD  = os.environ.get("AGENT_MODEL_STANDARD",  "llama-3.3-70b-versatile")   # Groq id
 MODEL_FAST      = os.environ.get("AGENT_MODEL_FAST",      "gemma2")             # Ollama
+
+# GitHub Models (https://docs.github.com/en/github-models) — free-tier
+# OpenAI-compatible inference using a GitHub token instead of a billed
+# OPENAI_API_KEY. GITHUB_TOKEN is the automatically-provided token in
+# every GitHub Actions run (no extra secret needed there); GITHUB_MODELS_TOKEN
+# is the override for local dev (e.g. `export GITHUB_MODELS_TOKEN=$(gh auth token)`).
+GITHUB_MODELS_TOKEN = os.environ.get("GITHUB_MODELS_TOKEN") or os.environ.get("GITHUB_TOKEN", "")
 MODEL_LOCAL     = os.environ.get("AGENT_MODEL_LOCAL",     "llama3")             # Ollama fallback
 
 # Token thresholds
@@ -188,24 +195,24 @@ def route(
 
 
 def _build_cloud_route(tier: str) -> ModelRoute:
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    openai_key    = os.environ.get("OPENAI_API_KEY", "")
-    groq_key      = os.environ.get("GROQ_API_KEY", "")
+    groq_key = os.environ.get("GROQ_API_KEY", "")
 
     if tier == "architect":
-        return ModelRoute(
-            model=MODEL_ARCHITECT,
-            base_url="https://api.anthropic.com/v1",
-            api_key=anthropic_key,
-            tier="architect",
-        )
+        # Provider inferred from AGENT_MODEL_ARCHITECT's actual value (via
+        # _route_for_model) rather than hardcoded to Anthropic — previously
+        # this tier always posted to api.anthropic.com regardless of what
+        # AGENT_MODEL_ARCHITECT was set to, so overriding that env var to a
+        # non-Anthropic model id silently sent it to the wrong host with
+        # the wrong key. route.tier is relabelled "architect" below since
+        # _route_for_model's own generic "forced" tier label is for the
+        # force_model param's callers (eval_judge.py), not this one.
+        r = _route_for_model(MODEL_ARCHITECT)
+        r.tier = "architect"
+        return r
     elif tier == "complex":
-        return ModelRoute(
-            model=MODEL_COMPLEX,
-            base_url="https://api.openai.com/v1",
-            api_key=openai_key,
-            tier="complex",
-        )
+        r = _route_for_model(MODEL_COMPLEX)
+        r.tier = "complex"
+        return r
     elif tier == "standard":
         if groq_key:
             return ModelRoute(
@@ -230,6 +237,38 @@ def _local_route(model: Optional[str] = None) -> ModelRoute:
     )
 
 
+def _route_for_model(model: str) -> ModelRoute:
+    """Build a route for an EXACT model id, bypassing route()'s complexity
+    heuristics entirely — for callers (e.g. eval_judge.py's judge model)
+    that need a specific, caller-chosen model rather than "whichever tier
+    this prompt's length/keywords land on." Provider is inferred from the
+    model id's naming convention, same substring-based approach
+    infer_provider() already uses elsewhere in this codebase for base_url
+    strings."""
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    openai_key    = os.environ.get("OPENAI_API_KEY", "")
+    groq_key      = os.environ.get("GROQ_API_KEY", "")
+    lower = model.lower()
+
+    if "claude" in lower:
+        return ModelRoute(model=model, base_url="https://api.anthropic.com/v1", api_key=anthropic_key, tier="forced")
+    if "gpt" in lower or lower.startswith("o1") or lower.startswith("o3"):
+        if GITHUB_MODELS_TOKEN:
+            # Free-tier, no OpenAI billing required — prefer this over a
+            # possibly-unfunded OPENAI_API_KEY. GitHub Models namespaces
+            # OpenAI model ids under "openai/" (confirmed against the live
+            # API: bare "gpt-4o" 404s, "openai/gpt-4o" succeeds).
+            gh_model = model if "/" in model else f"openai/{model}"
+            return ModelRoute(
+                model=gh_model, base_url="https://models.github.ai/inference",
+                api_key=GITHUB_MODELS_TOKEN, tier="forced",
+            )
+        return ModelRoute(model=model, base_url="https://api.openai.com/v1", api_key=openai_key, tier="forced")
+    if groq_key and ("llama" in lower or "mixtral" in lower or "gemma" in lower):
+        return ModelRoute(model=model, base_url="https://api.groq.com/openai/v1", api_key=groq_key, tier="forced")
+    return _local_route(model=model)
+
+
 # ── Convenience: call via OpenAI-compatible API ───────────────────────────────
 
 def call(
@@ -238,12 +277,18 @@ def call(
     task_type: Optional[str] = None,
     temperature: float = 0.2,
     max_tokens: int = 4096,
+    force_model: Optional[str] = None,
 ) -> str:
     """
     Route and invoke the model. Returns the response text.
     Records token usage for circuit breaker.
+
+    force_model: bypass route()'s complexity-tier heuristics and use this
+    exact model id (e.g. a configured eval judge model that must not be
+    silently swapped for whatever tier the prompt's length/keywords land
+    on — see eval_judge.py's run_judge()).
     """
-    route_result = route(prompt, task_type=task_type)
+    route_result = _route_for_model(force_model) if force_model else route(prompt, task_type=task_type)
 
     # Build messages
     messages = []
