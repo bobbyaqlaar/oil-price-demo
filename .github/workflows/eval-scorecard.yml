@@ -14,6 +14,12 @@ jobs:
     name: "Eval scorecard"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      models: read   # required for GITHUB_TOKEN to call the GitHub Models
+                      # inference API (cost_router.py's GitHub Models
+                      # fallback) — without this scope every call 403s even
+                      # though the token is otherwise valid.
     steps:
       - name: Checkout
         uses: actions/checkout@v4

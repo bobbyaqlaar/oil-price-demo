@@ -25,6 +25,7 @@ jobs:
       contents: read
       packages: write   # only used if a Dockerfile is present — see build-push-ghcr
       id-token: write   # required for google-github-actions/auth's Workload Identity Federation
+      models: read      # required for GITHUB_TOKEN to call the GitHub Models inference API
 
     env:
       ENVIRONMENT: staging
