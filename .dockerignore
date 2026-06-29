@@ -1,0 +1,9 @@
+.env
+.env.*
+.git
+.github
+__pycache__
+*.pyc
+.agent-rfc
+.agenticframework
+runtime/.hitl_blobs

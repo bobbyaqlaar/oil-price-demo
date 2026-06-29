@@ -1,0 +1,138 @@
+# runtime/models.yaml — Framework default model registry (§29).
+#
+# Tenant repos may override any entry by placing their own `models.yaml` at the
+# tenant repo root. Per-role overrides without a full registry copy can also be
+# set in `.agenticframework/tenant.yaml` under `gateway.routing_overrides`.
+#
+# `degrade_to` defines the downgrade ladder target for tier 2 (Downgrade).
+#
+# Optional per-model overrides (fall back to the provider's default direct
+# API endpoint / standard env var when omitted):
+#   endpoint:     base URL — point at a proxy, region-pinned host, etc.
+#                 (supports ${VAR} expansion; required for provider: ollama)
+#   api_key_env:  name of the env var holding this model's API key — use
+#                 when a tenant has its own key under a different var name
+#
+# Note: endpoint/api_key_env above only cover "same request/response shape,
+# different host or key" cases (direct anthropic/openai/ollama).
+#
+# Cloud-native hosting has its own auth + envelope shape per provider,
+# handled by a CloudProviderAdapter in runtime/provider_dispatch.py
+# (set provider: to one of the values below to use it):
+#
+#   provider: vertex_ai          # GCP Vertex AI — OAuth2 service account
+#     project: my-gcp-project    # required
+#     region: us-central1        # optional, default shown — verified live (gemini-2.5-flash, 2026-06-29).
+#                                # GCC regions me-central1 (Doha) / me-central2 (Dammam) were tested
+#                                # live and do NOT currently serve gemini-2.5-flash (404 "Publisher
+#                                # model ... not found"); europe-west1/europe-west4/asia-south1 also
+#                                # confirmed working. Verify before overriding to a GCC region.
+#     publisher: google          # optional, default shown — Gemini, first-party on Vertex, no
+#                                # cross-vendor regional rollout lag. Set to "anthropic" for
+#                                # Claude-on-Vertex instead — supported but deprioritized as the
+#                                # default since its per-region availability depends on Anthropic's
+#                                # own Vertex rollout schedule, not just the Vertex region's GA status.
+#     url_template: "https://{region}-aiplatform.googleapis.com/v1/projects/{project}/..."
+#                                # optional — overrides the URL shape entirely (private VPC
+#                                # endpoint, proxy, regional variant); default is the public API
+#
+#   provider: azure_openai       # Azure OpenAI — api-key + api-version, deployment in URL
+#     resource: my-azure-resource    # required
+#     deployment: gpt-4o-prod        # optional, defaults to `id`
+#     api_version: "2024-06-01"      # optional, default shown
+#     api_key_env: AZURE_OPENAI_API_KEY  # optional, default shown
+#     url_template: "https://{resource}.openai.azure.us/..."  # optional, e.g. Azure Gov cloud
+#
+#   provider: bedrock            # AWS Bedrock — SigV4, standard boto3 credential chain
+#     region: us-east-1          # optional, default shown — broad model coverage. AWS's GCC
+#                                # region is me-central-1 (UAE/Dubai); me-south-1 (Bahrain) is the
+#                                # other Middle East option — NEITHER has been verified to have
+#                                # Bedrock or the model you need enabled (no AWS creds available to
+#                                # test; the equivalent GCP GCC-region assumption above turned out
+#                                # to be wrong when actually tested — don't assume this one is right
+#                                # either). Confirm via a live call before overriding to a GCC region.
+#     url_template: "https://vpce-xxxx.bedrock-runtime.{region}.vpce.amazonaws.com/model/{model_id}/invoke"
+#                                # optional, e.g. a VPC interface endpoint instead of the public host
+#
+#   provider: huawei_modelarts   # Huawei Cloud ModelArts — AK/SK signing (least-verified; see
+#     endpoint: xxxxx.<region>.modelarts-infer.com  # required, custom inference endpoint host.
+#                                # No confirmed Huawei Cloud GCC region code at time of writing —
+#                                # verify against Huawei's current region list before deploying.
+#     path_template: "/v2/infers/{model_id}/chat/completions"  # optional, default shown is /v1/...
+#                                # provider_dispatch.py's HuaweiModelArtsAdapter docstring)
+#
+# Mock-tested: all four (runtime/test/test_provider_dispatch_cloud.py).
+# Live-verified against a real cloud account: vertex_ai only (project
+# agentsmith-500916, 2026-06-29) — see the `vertex_gemini` entry below and
+# the region note in its comment. azure_openai/bedrock/huawei_modelarts
+# remain mock-tested only.
+
+models:
+  architect:
+    id: claude-sonnet-4-6
+    provider: anthropic
+    cost_per_input_token: 0.000003
+    cost_per_output_token: 0.000015
+    degrade_to: developer
+
+  developer:
+    id: gpt-4o
+    provider: openai
+    cost_per_input_token: 0.0000025
+    cost_per_output_token: 0.00001
+    degrade_to: validator
+
+  validator:
+    id: claude-haiku-4-5-20251001
+    provider: anthropic
+    cost_per_input_token: 0.00000025
+    cost_per_output_token: 0.00000125
+    degrade_to: local_large
+
+  # ── Local Ollama tier ────────────────────────────────────────────────────────
+  # Bottom of the degrade ladder and the models used in offline mode
+  # (ai-mode-local). Free (zero cost), ordered strongest → fastest. Pull with:
+  #   ollama pull qwen2.5 && ollama pull llama3.2 && ollama pull smollm2
+  local_large:
+    id: qwen2.5
+    provider: ollama
+    endpoint: "${OLLAMA_BASE_URL}/v1"
+    cost_per_input_token: 0
+    cost_per_output_token: 0
+    degrade_to: local_small
+
+  local_small:
+    id: llama3.2
+    provider: ollama
+    endpoint: "${OLLAMA_BASE_URL}/v1"
+    cost_per_input_token: 0
+    cost_per_output_token: 0
+    degrade_to: fast
+
+  # ── GCP Vertex AI (opt-in, not in the default degrade chain) ───────────────────
+  # Live-verified: gemini-2.5-flash in us-central1 against a real GCP
+  # project (2026-06-29) — request/response round-tripped correctly through
+  # VertexAIAdapter. Requires GOOGLE_APPLICATION_CREDENTIALS (or another
+  # google-auth-supported credential source) and the Vertex AI API enabled
+  # on `project`. cost_per_*_token below are placeholders — confirm against
+  # GCP's current Vertex AI pricing page before relying on them for budget
+  # enforcement. Route to this role explicitly via model_hint="vertex_gemini"
+  # or a tenant's routing_overrides; it isn't wired into
+  # architect/developer/validator's degrade_to chain since most tenants
+  # won't have GCP credentials configured.
+  vertex_gemini:
+    id: gemini-2.5-flash
+    provider: vertex_ai
+    project: "${GCP_PROJECT_ID}"   # set per-tenant; no project id is committed here
+    region: us-central1            # GCC regions (me-central1/me-central2) confirmed NOT to serve this model
+    cost_per_input_token: 0.0000003
+    cost_per_output_token: 0.0000025
+    degrade_to: null
+
+  fast:
+    id: smollm2
+    provider: ollama
+    endpoint: "${OLLAMA_BASE_URL}/v1"
+    cost_per_input_token: 0
+    cost_per_output_token: 0
+    degrade_to: null

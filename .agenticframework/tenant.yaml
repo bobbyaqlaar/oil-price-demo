@@ -1,0 +1,24 @@
+tenant:
+  id: oil-price-demo
+  name: Oil Price Agent (Reference Example)
+  isolation: shared
+
+framework:
+  version: "1.0.0"
+  mode: developer
+
+environments:
+  development:
+    phoenix_namespace: oil-price-demo-dev
+  staging:
+    phoenix_namespace: oil-price-demo-staging
+    eval_fail_below: 0.75
+  production:
+    phoenix_namespace: oil-price-demo-prod
+    eval_fail_below: 0.80
+    redaction_profile: production
+
+gateway:
+  # Model routing overrides for this tenant (optional)
+  # routing_overrides:
+  #   developer: llama3-70b-8192

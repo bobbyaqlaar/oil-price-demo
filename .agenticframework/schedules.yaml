@@ -1,0 +1,7 @@
+# Per-tenant cron schedules (§25). Owned by the tenant repo, not the framework.
+schedules:
+  - name: daily-prediction
+    workflow: OilPricePredictionWorkflow
+    task_queue: agent-tasks-oil-price-demo
+    cron: "0 6 * * *"
+    timezone: UTC
