@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 runtime/.hitl_blobs/
+
+# AgentSmith — IDE configs (system prompt content)
+.cursorrules
+CLAUDE.md
+.agents/
+.agent-history.log
+.agent-rfc/fixtures/eval_results.json

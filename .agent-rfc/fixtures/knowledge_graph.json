@@ -1,0 +1,535 @@
+{
+  "directed": true,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_run_health_server",
+        "_run_worker_with_retry",
+        "main",
+        "healthz"
+      ],
+      "last_modified": "2026-06-29T20:05:39Z",
+      "id": "worker.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "test",
+        "main"
+      ],
+      "last_modified": "2026-06-29T16:43:55Z",
+      "id": "test_model.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "OilPriceWorkflowInput",
+        "main"
+      ],
+      "last_modified": "2026-06-29T20:05:39Z",
+      "id": "trigger_workflow.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "main"
+      ],
+      "last_modified": "2026-06-29T20:05:39Z",
+      "id": "resolve_hitl.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "main",
+        "_load_tenant_worker_module",
+        "_start_temporal_worker",
+        "_start_celery_worker"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/worker.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "make_key",
+        "IdempotencyStore",
+        "_RedisBackend",
+        "_PostgresBackend",
+        "__init__",
+        "get",
+        "set",
+        "_connect",
+        "purge_expired"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/idempotency.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_verify_signature",
+        "ReplayWebhookHandler",
+        "main",
+        "do_POST",
+        "_replay",
+        "log_message",
+        "_connect"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/replay_webhook_server.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_luhn_valid",
+        "_redact_credit_cards",
+        "_hash8",
+        "_load_extra_patterns",
+        "HITLBlobStore",
+        "_make_blob_ref",
+        "TraceRedactor",
+        "_sub",
+        "__init__",
+        "_key",
+        "put",
+        "_blob_store_for",
+        "on_start",
+        "on_end",
+        "shutdown",
+        "force_flush",
+        "_scrub",
+        "_truncate"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/trace_redactor.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/__init__.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "CompletionResult",
+        "BudgetExceededError",
+        "_repo_root",
+        "_load_yaml",
+        "load_model_registry",
+        "_current_period",
+        "BudgetStatus",
+        "_BudgetBackend",
+        "_MemoryBudgetBackend",
+        "_RedisBudgetBackend",
+        "_PostgresBudgetBackend",
+        "_make_budget_backend",
+        "LLMGateway",
+        "remaining_usd",
+        "breached",
+        "get_spend",
+        "add_spend",
+        "try_reserve",
+        "__init__",
+        "_key",
+        "_connect",
+        "_period",
+        "_make_idempotency_store",
+        "get_budget_status",
+        "_degrade_chain",
+        "_is_free_tier",
+        "_is_provider_exhausted",
+        "_resolve_role",
+        "_report_run_status",
+        "_record_span_attributes",
+        "complete",
+        "_coerce_messages",
+        "_is_retryable_provider_error",
+        "_invoke",
+        "_post_with_retry"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/llm_gateway.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "get_environment"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/environment.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_notify",
+        "DLQEntry",
+        "DeadLetterQueue",
+        "__init__",
+        "_migrate",
+        "_connect",
+        "_row_to_entry",
+        "enqueue",
+        "list",
+        "_get",
+        "replay",
+        "discard"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/dead_letter.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "make_temporal_replay_handler",
+        "handler",
+        "_signal"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/temporal_replay.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "infer_provider",
+        "build_request",
+        "parse_response",
+        "CloudProviderAdapter",
+        "_anthropic_messages_body",
+        "VertexAIAdapter",
+        "AzureOpenAIAdapter",
+        "BedrockAdapter",
+        "HuaweiModelArtsAdapter",
+        "is_cloud_provider",
+        "get_cloud_adapter",
+        "build_cloud_request",
+        "parse_cloud_response",
+        "_get_access_token"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/provider_dispatch.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_ensure_runtime_on_path",
+        "fetch_oil_price_activity",
+        "run_prediction_activity",
+        "decide_action_activity",
+        "dead_letter_activity",
+        "_NoopActivity",
+        "defn"
+      ],
+      "last_modified": "2026-06-29T19:14:46Z",
+      "id": "workflows/activities.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "OilPriceWorkflowInput",
+        "OilPricePredictionWorkflow",
+        "__init__",
+        "run",
+        "_decide"
+      ],
+      "last_modified": "2026-06-29T16:43:55Z",
+      "id": "workflows/oil_price_workflow.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [],
+      "last_modified": "2026-06-29T16:43:55Z",
+      "id": "workflows/__init__.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_golden_path",
+        "_criteria_path",
+        "_results_path",
+        "_load_golden_cases",
+        "_load_criteria",
+        "_judge_case",
+        "run_scorecard"
+      ],
+      "last_modified": "2026-06-29T20:14:57Z",
+      "id": "scripts/run-evals.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_project_name",
+        "AgentLogger",
+        "get_logger",
+        "__init__",
+        "info",
+        "minor",
+        "major",
+        "critical",
+        "llm_call",
+        "_write",
+        "resolve_hitl",
+        "unresolved_issues"
+      ],
+      "last_modified": "2026-06-29T20:07:37Z",
+      "id": "scripts/agent_logger.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_notify_plyer",
+        "_notify_osascript",
+        "_send_webhook",
+        "send_notification",
+        "notify_hitl_required",
+        "notify_circuit_breaker",
+        "notify_eval_result",
+        "_post",
+        "_dispatch"
+      ],
+      "last_modified": "2026-06-29T20:08:19Z",
+      "id": "scripts/notifier.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_repo_root",
+        "_iso_now",
+        "_tenant_id",
+        "_phoenix_get",
+        "_phoenix_post"
+      ],
+      "last_modified": "2026-06-29T20:07:37Z",
+      "id": "scripts/_shared.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_cache_path",
+        "_load_state",
+        "_save_state",
+        "CircuitBreakerTripped",
+        "audit_token_velocity_circuit",
+        "_notify_if_requested",
+        "get_status",
+        "reset_monthly",
+        "__init__"
+      ],
+      "last_modified": "2026-06-29T20:08:19Z",
+      "id": "scripts/circuit_breaker.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_load_sync_state",
+        "_save_sync_state",
+        "_load_tenant_yaml",
+        "_budget_cap_usd",
+        "_replay_webhook_config",
+        "_entry_id",
+        "sync"
+      ],
+      "last_modified": "2026-06-29T20:07:37Z",
+      "id": "scripts/sync-portal-history.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_count_tokens",
+        "_keyword_tier",
+        "record_failure",
+        "record_success",
+        "_should_escalate",
+        "ModelRoute",
+        "route",
+        "_build_cloud_route",
+        "_local_route",
+        "call",
+        "__init__",
+        "__repr__"
+      ],
+      "last_modified": "2026-06-29T20:08:19Z",
+      "id": "scripts/cost_router.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "judge_prompt",
+        "run_judge",
+        "judge_case"
+      ],
+      "last_modified": "2026-06-29T20:07:37Z",
+      "id": "scripts/eval_judge.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_check",
+        "run_checks",
+        "check_redaction",
+        "check_idempotency",
+        "check_dlq",
+        "check_hooks",
+        "check_history_sync",
+        "check_kg",
+        "check_onprem_deploy",
+        "_run",
+        "_git_repo"
+      ],
+      "last_modified": "2026-06-29T20:07:37Z",
+      "id": "scripts/verify_system.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/workflows/__init__.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "AgentWorkflowInput",
+        "AgentWorkflowResult",
+        "BaseAgentWorkflow",
+        "dlq_enqueue_activity",
+        "__init__",
+        "run_with_hitl_gate",
+        "run_with_recoverable_step",
+        "_Workflow",
+        "hitl_approved",
+        "human_fix_payload",
+        "signal"
+      ],
+      "last_modified": "2026-06-29T19:12:45Z",
+      "id": "runtime/workflows/base_workflow.py"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "REQUIREMENTS & DESIGN",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 1,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:1"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "BUILD ARCHITECTURE (Ponytail Rules)",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 2,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:2"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "TRACING & EVALUATIONS",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 3,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:3"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "TESTING GUARDRAILS",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 4,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:4"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "OPERATIONS & SELF-IMPROVEMENT",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 5,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:5"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "INTERFACE CONSTRAINTS (Caveman Compression)",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 6,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:6"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "STACK-SPECIFIC RULES",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 7,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:7"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "OBSERVABILITY WIRE",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 8,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:8"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "MULTI-AGENT ORCHESTRATION",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 9,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:9"
+    },
+    {
+      "node_type": "Guardrail",
+      "title": "COST-OPTIMISATION ROUTING",
+      "source_file": "/Users/mac/Documents/Bobby/Aqlaar/Apps/oil-price-demo/.cursorrules",
+      "pillar": 10,
+      "created_at": "2026-06-29T20:16:35Z",
+      "id": "cursorrules:pillar:10"
+    }
+  ],
+  "edges": [
+    {
+      "edge_type": "IMPORTS",
+      "source": "runtime/trace_redactor.py",
+      "target": "runtime/__init__.py"
+    },
+    {
+      "edge_type": "IMPORTS",
+      "source": "runtime/llm_gateway.py",
+      "target": "runtime/__init__.py"
+    },
+    {
+      "edge_type": "IMPORTS",
+      "source": "scripts/cost_router.py",
+      "target": "runtime/__init__.py"
+    }
+  ]
+}
