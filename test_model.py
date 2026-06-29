@@ -1,5 +1,7 @@
 """Quick model ID test — run from oil-price-demo/ with .env sourced."""
-import asyncio, os, sys
+import asyncio
+import os
+import sys
 import httpx
 
 async def test(model_id: str, api_key: str) -> None:

@@ -20,7 +20,6 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -73,8 +72,8 @@ def _save_state(state: dict) -> None:
         path = _cache_path()
         with path.open("w") as fh:
             json.dump(state, fh, indent=2)
-    except OSError:
-        pass   # read-only FS in some CI environments — best effort
+    except OSError:  # fail-open: read-only FS in some CI environments — best effort; does not affect the CircuitBreakerTripped raise path
+        pass
 
 
 # ── Core audit function ───────────────────────────────────────────────────────

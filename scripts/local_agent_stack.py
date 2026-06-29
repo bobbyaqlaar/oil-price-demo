@@ -306,7 +306,7 @@ def run_pipeline(
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import argparse, sys
+    import argparse
 
     parser = argparse.ArgumentParser(description="Run local agent pipeline")
     parser.add_argument("task",          help="Task description")

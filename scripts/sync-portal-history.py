@@ -28,7 +28,6 @@ import hashlib
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any, Optional
 
 OPS_PORTAL_URL = os.environ.get("OPS_PORTAL_URL", "")

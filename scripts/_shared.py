@@ -17,7 +17,6 @@ consolidated here.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -53,7 +52,7 @@ def _tenant_id() -> Optional[str]:
             for line in tenant_file.read_text().splitlines():
                 if line.strip().startswith("id:"):
                     return line.split(":", 1)[1].strip()
-        except Exception:
+        except Exception:  # fail-open: best-effort tenant-id lookup; None is a valid "no tenant" result, same as the yaml-parse path below
             pass
         return None
     except Exception:

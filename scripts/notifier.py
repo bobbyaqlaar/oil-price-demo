@@ -88,7 +88,7 @@ def _send_webhook(title: str, message: str) -> None:
                 headers={"Content-Type": "application/json"},
             )
             urllib.request.urlopen(req, timeout=5)
-        except Exception:
+        except Exception:  # fail-open: fire-and-forget webhook on a daemon thread; nothing waits on or checks this
             pass
 
     threading.Thread(target=_post, daemon=True, name="notifier-webhook").start()

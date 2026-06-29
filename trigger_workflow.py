@@ -92,7 +92,7 @@ async def main() -> None:
             sys.exit(1)
         raise
 
-    print(f"Workflow started. Waiting for result (may pause at HITL gate) …")
+    print("Workflow started. Waiting for result (may pause at HITL gate) …")
     result = await handle.result()
     print(f"\nResult: {result}")
 

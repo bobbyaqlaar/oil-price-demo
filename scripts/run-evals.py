@@ -27,7 +27,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -189,7 +189,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
     try:
         from notifier import notify_eval_result
         notify_eval_result(avg_score, fail_below, project=project)
-    except Exception:  # noqa: bare-except — a desktop notification failing must not affect the eval's pass/fail result
+    except Exception:  # fail-open: a desktop notification failing must not affect the eval's pass/fail result
         pass
 
     return 0 if passed else 1

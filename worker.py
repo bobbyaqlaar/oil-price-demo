@@ -39,8 +39,8 @@ else:
 sys.path.insert(0, str(_runtime_root))
 sys.path.insert(0, str(_runtime_root / "workflows"))
 
-from oil_price_workflow import OilPricePredictionWorkflow  # type: ignore
-from activities import (  # type: ignore
+from oil_price_workflow import OilPricePredictionWorkflow  # type: ignore  # noqa: E402
+from activities import (  # type: ignore  # noqa: E402
     fetch_oil_price_activity,
     run_prediction_activity,
     decide_action_activity,

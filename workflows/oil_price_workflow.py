@@ -44,7 +44,7 @@ from datetime import timedelta
 # validation — a sys.path.insert(..., Path(...).resolve()...) at this
 # module's top level trips the sandbox's restriction on
 # pathlib.Path.resolve() (confirmed by running it, not a guess).
-from base_workflow import AgentWorkflowResult, BaseAgentWorkflow, _HAS_TEMPORAL, workflow  # type: ignore
+from base_workflow import BaseAgentWorkflow, _HAS_TEMPORAL, workflow  # type: ignore
 
 HITL_SIGNAL_TIMEOUT = timedelta(hours=24)
 

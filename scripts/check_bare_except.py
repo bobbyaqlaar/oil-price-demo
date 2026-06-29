@@ -18,9 +18,16 @@ statement is `pass` or a bare `...` (Ellipsis) expression — i.e. it does
 nothing at all. `except Exception: pass` is sometimes an intentional,
 documented fail-open pattern (e.g. runtime/llm_gateway.py's
 _record_span_attributes, where a tracing failure must never break the
-actual LLM call) — append `# noqa: bare-except` to the `except` line to
+actual LLM call) — append `# fail-open: <reason>` to the `except` line to
 opt that specific handler out, the same way the rest of this codebase
 uses inline suppression comments rather than a blanket exemption list.
+
+Deliberately NOT spelled `# noqa: ...` — ruff treats any `# noqa:` comment
+as ITS OWN suppression directive and demands a comma-separated list of
+ruff rule codes after the colon, so `# noqa: bare-except — reason` (this
+checker's first convention) made ruff itself emit an "Invalid noqa
+directive" warning on every annotated line. `# fail-open: ...` carries the
+same meaning without colliding with ruff's own comment syntax.
 """
 
 from __future__ import annotations
@@ -54,7 +61,7 @@ def find_violations(source: str, path: str) -> list[tuple[str, int]]:
         if not _is_noop_body(node.body):
             continue
         header_line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""
-        if "noqa: bare-except" in header_line:
+        if "fail-open:" in header_line:
             continue
         violations.append((path, node.lineno))
     return violations
@@ -70,7 +77,7 @@ def main(argv: list[str]) -> int:
             continue
         for file_path, lineno in find_violations(source, path):
             print(f"{file_path}:{lineno}: empty except handler (pass/... only) — log or re-raise, "
-                  f"or append '# noqa: bare-except' to the except line if this is an intentional fail-open")
+                  f"or append '# fail-open: <reason>' to the except line if this is an intentional fail-open")
             failed = True
     return 1 if failed else 0
 

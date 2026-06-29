@@ -175,7 +175,7 @@ def run_checks() -> bool:
                         and not entry.get("hitl_resolved", True)
                     ):
                         unresolved.append(entry)
-                except Exception:
+                except Exception:  # fail-open: one malformed JSON-lines entry must not abort scanning the rest of the log for unresolved issues
                     pass
 
         if unresolved:
@@ -472,7 +472,7 @@ def check_history_sync() -> bool:
         (tmp / ".agenticframework").mkdir()
         (tmp / ".agenticframework" / "tenant.yaml").write_text(f"tenant:\n  id: {tenant_id}\n")
         (tmp / ".agent-history.log").write_text(
-            f'{{"timestamp":"2026-01-01T00:00:00Z","level":"CRITICAL","event":"verify_check","hitl_resolved":false}}\n'
+            '{"timestamp":"2026-01-01T00:00:00Z","level":"CRITICAL","event":"verify_check","hitl_resolved":false}\n'
         )
 
         env = {**os.environ, "OPS_PORTAL_URL": ops_portal_url, "OPS_PORTAL_SYNC_TOKEN": sync_token}
