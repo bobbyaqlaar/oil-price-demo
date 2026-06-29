@@ -22,7 +22,6 @@ sys.path.insert(0, str(_repo / "runtime"))
 sys.path.insert(0, str(_repo / "workflows"))
 
 from activities import (  # noqa: E402
-    ANOMALY_STD_DEV_THRESHOLD,
     CONFIDENCE_HITL_THRESHOLD,
     decide_action_activity,
     fetch_oil_price_activity,
