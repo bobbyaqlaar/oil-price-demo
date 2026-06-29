@@ -16,9 +16,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, mock_open, patch
-
-import pytest
+from unittest.mock import mock_open, patch
 
 _repo = Path(__file__).resolve().parent.parent
 _script = _repo / "scripts" / "run-evals.py"
