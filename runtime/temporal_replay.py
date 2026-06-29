@@ -73,12 +73,16 @@ def make_temporal_replay_handler(client: "Client") -> Callable[["DLQEntry"], Non
 
         async def _signal() -> None:
             handle = client.get_workflow_handle(entry.workflow_id)
-            await handle.signal("human_fix_payload", args=[entry.gate_id, entry.payload])
+            await handle.signal(
+                "human_fix_payload", args=[entry.gate_id, entry.payload]
+            )
 
         asyncio.run(_signal())
         logger.info(
             "Signaled workflow_id=%s gate_id=%s with replayed payload for task_id=%s",
-            entry.workflow_id, entry.gate_id, entry.task_id,
+            entry.workflow_id,
+            entry.gate_id,
+            entry.task_id,
         )
 
     return handler

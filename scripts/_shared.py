@@ -32,6 +32,7 @@ def _repo_root() -> Path:
 
 def _iso_now() -> str:
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -45,6 +46,7 @@ def _tenant_id() -> Optional[str]:
         return None
     try:
         import yaml  # type: ignore
+
         data = yaml.safe_load(tenant_file.read_text())
         return (data or {}).get("tenant", {}).get("id")
     except ImportError:
@@ -59,11 +61,14 @@ def _tenant_id() -> Optional[str]:
         return None
 
 
-def _phoenix_get(phoenix_endpoint: str, path: str, params: Optional[dict] = None) -> Any:
+def _phoenix_get(
+    phoenix_endpoint: str, path: str, params: Optional[dict] = None
+) -> Any:
     """GET against a Phoenix REST endpoint. Raises RuntimeError with the
     failing path in the message on any error — callers get a useful
     message without each having to wrap this themselves."""
     import httpx
+
     url = f"{phoenix_endpoint.rstrip('/')}{path}"
     try:
         resp = httpx.get(url, params=params, timeout=30.0)
@@ -75,6 +80,7 @@ def _phoenix_get(phoenix_endpoint: str, path: str, params: Optional[dict] = None
 
 def _phoenix_post(phoenix_endpoint: str, path: str, body: dict) -> Any:
     import httpx
+
     url = f"{phoenix_endpoint.rstrip('/')}{path}"
     try:
         resp = httpx.post(url, json=body, timeout=30.0)

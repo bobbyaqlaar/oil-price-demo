@@ -31,17 +31,17 @@ import time
 from pathlib import Path
 
 REQUIRED_PACKAGES = [
-    "phoenix",          # arize-phoenix
-    "opentelemetry",    # opentelemetry-sdk
-    "networkx",         # networkx>=3.0
-    "langgraph",        # langgraph>=0.2 (soft)
-    "tiktoken",         # cost router token counting
-    "httpx",            # LLM API calls
-    "plyer",            # notifications
-    "tenacity",         # retry logic
+    "phoenix",  # arize-phoenix
+    "opentelemetry",  # opentelemetry-sdk
+    "networkx",  # networkx>=3.0
+    "langgraph",  # langgraph>=0.2 (soft)
+    "tiktoken",  # cost router token counting
+    "httpx",  # LLM API calls
+    "plyer",  # notifications
+    "tenacity",  # retry logic
 ]
 
-SOFT_PACKAGES = {"langgraph"}    # warn-only; not hard requirement
+SOFT_PACKAGES = {"langgraph"}  # warn-only; not hard requirement
 
 
 from _shared import _repo_root  # noqa: E402
@@ -98,9 +98,12 @@ def run_checks() -> bool:
     try:
         configured_dir = subprocess.check_output(
             ["git", "config", "--global", "init.templateDir"],
-            capture_output=True, text=True
+            capture_output=True,
+            text=True,
         ).stdout.strip()
-        ok = str(template_dir) in configured_dir or configured_dir.endswith(".git_templates")
+        ok = str(template_dir) in configured_dir or configured_dir.endswith(
+            ".git_templates"
+        )
         if not _check("git init.templateDir set", ok, f"Got: {configured_dir!r}"):
             failures += 1
     except subprocess.CalledProcessError:
@@ -113,12 +116,23 @@ def run_checks() -> bool:
     phoenix_endpoint = os.environ.get("AGENT_PHOENIX_ENDPOINT", "http://localhost:6006")
     try:
         import httpx
+
         resp = httpx.get(phoenix_endpoint, timeout=3.0)
-        phoenix_ok = resp.status_code in (200, 301, 302, 404)  # 404 = server up, unknown path
+        phoenix_ok = resp.status_code in (
+            200,
+            301,
+            302,
+            404,
+        )  # 404 = server up, unknown path
     except Exception:
         phoenix_ok = False
-    if not _check(f"Phoenix @ {phoenix_endpoint}", phoenix_ok, "Run: ai-dashboard-start", warn_only=True):
-        pass   # warn-only: offline phoenix is allowed
+    if not _check(
+        f"Phoenix @ {phoenix_endpoint}",
+        phoenix_ok,
+        "Run: ai-dashboard-start",
+        warn_only=True,
+    ):
+        pass  # warn-only: offline phoenix is allowed
     print()
 
     # ── 5. Network / Ollama ───────────────────────────────────────────────────
@@ -128,28 +142,45 @@ def run_checks() -> bool:
         s.close()
         _check("Internet connectivity", True)
     except OSError:
-        _check("Internet connectivity", False, "Offline — local mode only", warn_only=True)
+        _check(
+            "Internet connectivity", False, "Offline — local mode only", warn_only=True
+        )
 
     try:
         import httpx
+
         resp = httpx.get("http://localhost:11434/api/tags", timeout=3.0)
         ollama_ok = resp.status_code == 200
         models = [m["name"] for m in resp.json().get("models", [])] if ollama_ok else []
-        _check("Ollama daemon", ollama_ok, "Run: ollama serve" if not ollama_ok else "", warn_only=True)
+        _check(
+            "Ollama daemon",
+            ollama_ok,
+            "Run: ollama serve" if not ollama_ok else "",
+            warn_only=True,
+        )
         for required_model in ["llama3", "mistral", "gemma2"]:
             present = any(required_model in m for m in models)
-            _check(f"  model: {required_model}", present, f"ollama pull {required_model}", warn_only=True)
+            _check(
+                f"  model: {required_model}",
+                present,
+                f"ollama pull {required_model}",
+                warn_only=True,
+            )
     except Exception:
         _check("Ollama daemon", False, "Run: ollama serve", warn_only=True)
     print()
 
     # ── 6. Agent identity ─────────────────────────────────────────────────────
     print("Identity:")
-    owner_id   = os.environ.get("AGENT_OWNER_ID", "")
+    owner_id = os.environ.get("AGENT_OWNER_ID", "")
     owner_name = os.environ.get("AGENT_OWNER_NAME", "")
-    if not _check("AGENT_OWNER_ID set",   bool(owner_id),   "export AGENT_OWNER_ID=you@example.com"):
+    if not _check(
+        "AGENT_OWNER_ID set", bool(owner_id), "export AGENT_OWNER_ID=you@example.com"
+    ):
         failures += 1
-    if not _check("AGENT_OWNER_NAME set", bool(owner_name), "export AGENT_OWNER_NAME='Your Name'"):
+    if not _check(
+        "AGENT_OWNER_NAME set", bool(owner_name), "export AGENT_OWNER_NAME='Your Name'"
+    ):
         failures += 1
     judge = os.environ.get("AGENT_JUDGE_MODEL", "claude-3-5-sonnet-20241022")
     _check(f"AGENT_JUDGE_MODEL: {judge}", True)
@@ -170,9 +201,8 @@ def run_checks() -> bool:
                     continue
                 try:
                     entry = json.loads(line)
-                    if (
-                        entry.get("level") in ("MAJOR", "CRITICAL")
-                        and not entry.get("hitl_resolved", True)
+                    if entry.get("level") in ("MAJOR", "CRITICAL") and not entry.get(
+                        "hitl_resolved", True
                     ):
                         unresolved.append(entry)
                 except Exception:  # fail-open: one malformed JSON-lines entry must not abort scanning the rest of the log for unresolved issues
@@ -185,7 +215,9 @@ def run_checks() -> bool:
                 "Run 'ai-stack-promote' or resolve in Phoenix UI",
             )
             for entry in unresolved[:5]:
-                print(f"       [{entry['level']}] {entry.get('timestamp','')}  {entry.get('event','')}")
+                print(
+                    f"       [{entry['level']}] {entry.get('timestamp', '')}  {entry.get('event', '')}"
+                )
             failures += 1
         else:
             _check(".agent-history.log clean (no unresolved issues)", True)
@@ -226,17 +258,27 @@ def check_redaction() -> bool:
     print("═══════════════════════════════════════════════════\n")
 
     if redactor.profile == "none":
-        _check("ENVIRONMENT is development/testing — redaction check skipped", True, warn_only=True)
+        _check(
+            "ENVIRONMENT is development/testing — redaction check skipped",
+            True,
+            warn_only=True,
+        )
         print("═══════════════════════════════════════════════════")
         return True
 
     failures = 0
     for fixture in fixtures:
-        scrubbed = redactor._scrub(fixture, hash_identifiers=(redactor.profile == "staging"))
+        scrubbed = redactor._scrub(
+            fixture, hash_identifiers=(redactor.profile == "staging")
+        )
         if redactor.profile == "production":
             scrubbed = redactor._truncate(scrubbed)
-        leaked = ("sk-" in scrubbed) or ("@example.com" in scrubbed) or ("4111" in scrubbed)
-        if not _check(f"fixture scrubbed: {fixture[:40]}...", not leaked, f"leaked → {scrubbed!r}"):
+        leaked = (
+            ("sk-" in scrubbed) or ("@example.com" in scrubbed) or ("4111" in scrubbed)
+        )
+        if not _check(
+            f"fixture scrubbed: {fixture[:40]}...", not leaked, f"leaked → {scrubbed!r}"
+        ):
             failures += 1
 
     print()
@@ -287,7 +329,11 @@ def check_idempotency() -> bool:
 
     print()
     print("═══════════════════════════════════════════════════")
-    print("  🎉  Idempotency check passed" if failures == 0 else f"  🛑  {failures} check(s) failed")
+    print(
+        "  🎉  Idempotency check passed"
+        if failures == 0
+        else f"  🛑  {failures} check(s) failed"
+    )
     print("═══════════════════════════════════════════════════")
     return failures == 0
 
@@ -311,31 +357,48 @@ def check_dlq() -> bool:
     try:
         dlq = DeadLetterQueue()
         tenant_id = f"verify-system-{int(time.time())}"
-        entry = dlq.enqueue(payload={"check": "verify_system"}, error="synthetic", tenant_id=tenant_id)
+        entry = dlq.enqueue(
+            payload={"check": "verify_system"}, error="synthetic", tenant_id=tenant_id
+        )
 
         pending = [e.task_id for e in dlq.list(tenant_id=tenant_id, status="pending")]
-        if not _check("enqueued entry appears in pending list", entry.task_id in pending):
+        if not _check(
+            "enqueued entry appears in pending list", entry.task_id in pending
+        ):
             failures += 1
 
         replay_calls = []
-        dlq_with_handler = DeadLetterQueue(replay_handler=lambda e: replay_calls.append(e.task_id))
+        dlq_with_handler = DeadLetterQueue(
+            replay_handler=lambda e: replay_calls.append(e.task_id)
+        )
         dlq_with_handler.replay(entry.task_id)
-        if not _check("replay_handler invoked with the right task_id", replay_calls == [entry.task_id]):
+        if not _check(
+            "replay_handler invoked with the right task_id",
+            replay_calls == [entry.task_id],
+        ):
             failures += 1
 
         replayed = [e.task_id for e in dlq.list(tenant_id=tenant_id, status="replayed")]
         if not _check("entry moved to replayed status", entry.task_id in replayed):
             failures += 1
 
-        entry2 = dlq.enqueue(payload={"check": "discard"}, error="synthetic", tenant_id=tenant_id)
+        entry2 = dlq.enqueue(
+            payload={"check": "discard"}, error="synthetic", tenant_id=tenant_id
+        )
         dlq.discard(entry2.task_id)
-        discarded = [e.task_id for e in dlq.list(tenant_id=tenant_id, status="discarded")]
-        if not _check("discarded entry moved to discarded status", entry2.task_id in discarded):
+        discarded = [
+            e.task_id for e in dlq.list(tenant_id=tenant_id, status="discarded")
+        ]
+        if not _check(
+            "discarded entry moved to discarded status", entry2.task_id in discarded
+        ):
             failures += 1
 
         try:
             dlq.replay("nonexistent-task-id")
-            _check("replay() raises KeyError for unknown task_id", False, "did not raise")
+            _check(
+                "replay() raises KeyError for unknown task_id", False, "did not raise"
+            )
             failures += 1
         except KeyError:
             _check("replay() raises KeyError for unknown task_id", True)
@@ -345,7 +408,11 @@ def check_dlq() -> bool:
 
     print()
     print("═══════════════════════════════════════════════════")
-    print("  🎉  DLQ check passed" if failures == 0 else f"  🛑  {failures} check(s) failed")
+    print(
+        "  🎉  DLQ check passed"
+        if failures == 0
+        else f"  🛑  {failures} check(s) failed"
+    )
     print("═══════════════════════════════════════════════════")
     return failures == 0
 
@@ -377,7 +444,9 @@ def check_hooks() -> bool:
         repo = tmp / name
         repo.mkdir()
         subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"], cwd=repo, check=True
+        )
         subprocess.run(["git", "config", "user.name", "test"], cwd=repo, check=True)
         return repo
 
@@ -392,7 +461,11 @@ def check_hooks() -> bool:
         subprocess.run(["git", "add", "file.py"], cwd=repo1, check=True)
         env1 = {**os.environ, "HOME": str(tmp / "fake_home_1")}
         result1 = _run(["bash", str(hooks_dir / "pre-commit")], cwd=repo1, env=env1)
-        if not _check("unopted-in repo: pre-commit no-ops (exit 0) despite a tripping pattern", result1.returncode == 0, result1.stdout + result1.stderr):
+        if not _check(
+            "unopted-in repo: pre-commit no-ops (exit 0) despite a tripping pattern",
+            result1.returncode == 0,
+            result1.stdout + result1.stderr,
+        ):
             failures += 1
 
         # Scenario 2: .agenticframework/enabled present, no org policy ->
@@ -404,7 +477,11 @@ def check_hooks() -> bool:
         subprocess.run(["git", "add", "."], cwd=repo2, check=True)
         env2 = {**os.environ, "HOME": str(tmp / "fake_home_2")}
         result2 = _run(["bash", str(hooks_dir / "pre-commit")], cwd=repo2, env=env2)
-        if not _check("opted-in repo: pre-commit enforces guardrail 1 (exit 1)", result2.returncode == 1, result2.stdout + result2.stderr):
+        if not _check(
+            "opted-in repo: pre-commit enforces guardrail 1 (exit 1)",
+            result2.returncode == 1,
+            result2.stdout + result2.stderr,
+        ):
             failures += 1
 
         # Scenario 3: enterprise org policy present + opted-in, commit
@@ -414,19 +491,33 @@ def check_hooks() -> bool:
         (repo3 / ".agenticframework" / "enabled").touch()
         fake_home_3 = tmp / "fake_home_3"
         (fake_home_3 / ".agent-framework").mkdir(parents=True)
-        (fake_home_3 / ".agent-framework" / "agenticframework-org.yaml").write_text("hooks:\n  bypass_policy: disabled\n")
+        (fake_home_3 / ".agent-framework" / "agenticframework-org.yaml").write_text(
+            "hooks:\n  bypass_policy: disabled\n"
+        )
         msg_file = tmp / "msg_no_rfc.txt"
         msg_file.write_text("feat(x): no rfc reference here\n")
         env3 = {**os.environ, "HOME": str(fake_home_3)}
-        result3 = _run(["bash", str(hooks_dir / "commit-msg"), str(msg_file)], cwd=repo3, env=env3)
-        if not _check("enterprise + opted-in, no RFC-NNN in message: commit-msg blocks (exit 1)", result3.returncode == 1, result3.stdout + result3.stderr):
+        result3 = _run(
+            ["bash", str(hooks_dir / "commit-msg"), str(msg_file)], cwd=repo3, env=env3
+        )
+        if not _check(
+            "enterprise + opted-in, no RFC-NNN in message: commit-msg blocks (exit 1)",
+            result3.returncode == 1,
+            result3.stdout + result3.stderr,
+        ):
             failures += 1
 
         # Scenario 4: same as 3, but message DOES reference RFC-001 -> passes.
         msg_file2 = tmp / "msg_with_rfc.txt"
         msg_file2.write_text("feat(x): add thing (RFC-001)\n")
-        result4 = _run(["bash", str(hooks_dir / "commit-msg"), str(msg_file2)], cwd=repo3, env=env3)
-        if not _check("enterprise + opted-in, RFC-001 in message: commit-msg passes (exit 0)", result4.returncode == 0, result4.stdout + result4.stderr):
+        result4 = _run(
+            ["bash", str(hooks_dir / "commit-msg"), str(msg_file2)], cwd=repo3, env=env3
+        )
+        if not _check(
+            "enterprise + opted-in, RFC-001 in message: commit-msg passes (exit 0)",
+            result4.returncode == 0,
+            result4.stdout + result4.stderr,
+        ):
             failures += 1
 
         shutil.rmtree(tmp / "fake_home_1", ignore_errors=True)
@@ -434,7 +525,11 @@ def check_hooks() -> bool:
 
     print()
     print("═══════════════════════════════════════════════════")
-    print("  🎉  Hook gate check passed" if failures == 0 else f"  🛑  {failures} check(s) failed")
+    print(
+        "  🎉  Hook gate check passed"
+        if failures == 0
+        else f"  🛑  {failures} check(s) failed"
+    )
     print("═══════════════════════════════════════════════════")
     return failures == 0
 
@@ -459,7 +554,11 @@ def check_history_sync() -> bool:
     ops_portal_url = os.environ.get("OPS_PORTAL_URL", "")
     sync_token = os.environ.get("OPS_PORTAL_SYNC_TOKEN", "")
     if not ops_portal_url or not sync_token:
-        _check("OPS_PORTAL_URL and OPS_PORTAL_SYNC_TOKEN set", False, "required for this check")
+        _check(
+            "OPS_PORTAL_URL and OPS_PORTAL_SYNC_TOKEN set",
+            False,
+            "required for this check",
+        )
         return False
 
     sync_script = Path(__file__).resolve().parent / "sync-portal-history.py"
@@ -470,24 +569,52 @@ def check_history_sync() -> bool:
         subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
         tenant_id = f"verify-history-sync-{int(time.time())}"
         (tmp / ".agenticframework").mkdir()
-        (tmp / ".agenticframework" / "tenant.yaml").write_text(f"tenant:\n  id: {tenant_id}\n")
+        (tmp / ".agenticframework" / "tenant.yaml").write_text(
+            f"tenant:\n  id: {tenant_id}\n"
+        )
         (tmp / ".agent-history.log").write_text(
             '{"timestamp":"2026-01-01T00:00:00Z","level":"CRITICAL","event":"verify_check","hitl_resolved":false}\n'
         )
 
-        env = {**os.environ, "OPS_PORTAL_URL": ops_portal_url, "OPS_PORTAL_SYNC_TOKEN": sync_token}
-        result1 = subprocess.run(["python3", str(sync_script)], cwd=tmp, env=env, capture_output=True, text=True)
-        if not _check("first sync run exits 0", result1.returncode == 0, result1.stdout + result1.stderr):
+        env = {
+            **os.environ,
+            "OPS_PORTAL_URL": ops_portal_url,
+            "OPS_PORTAL_SYNC_TOKEN": sync_token,
+        }
+        result1 = subprocess.run(
+            ["python3", str(sync_script)],
+            cwd=tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if not _check(
+            "first sync run exits 0",
+            result1.returncode == 0,
+            result1.stdout + result1.stderr,
+        ):
             failures += 1
 
-        result2 = subprocess.run(["python3", str(sync_script)], cwd=tmp, env=env, capture_output=True, text=True)
+        result2 = subprocess.run(
+            ["python3", str(sync_script)],
+            cwd=tmp,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
         idempotent = "Nothing new to sync" in result2.stdout
-        if not _check("second run is idempotent (no resend)", idempotent, result2.stdout):
+        if not _check(
+            "second run is idempotent (no resend)", idempotent, result2.stdout
+        ):
             failures += 1
 
     print()
     print("═══════════════════════════════════════════════════")
-    print("  🎉  History sync check passed" if failures == 0 else f"  🛑  {failures} check(s) failed")
+    print(
+        "  🎉  History sync check passed"
+        if failures == 0
+        else f"  🛑  {failures} check(s) failed"
+    )
     print("═══════════════════════════════════════════════════")
     return failures == 0
 
@@ -531,16 +658,28 @@ def check_kg() -> bool:
     if not _check("Knowledge Graph is non-empty", len(nodes) > 0):
         failures += 1
 
-    known_files = {"scripts/map_codebase.py", "scripts/verify_system.py", "scripts/local_knowledge_graph.py"}
+    known_files = {
+        "scripts/map_codebase.py",
+        "scripts/verify_system.py",
+        "scripts/local_knowledge_graph.py",
+    }
     missing = known_files - node_ids
-    if not _check(f"known scripts/ file nodes present ({len(known_files)} expected)", not missing, f"missing: {missing}"):
+    if not _check(
+        f"known scripts/ file nodes present ({len(known_files)} expected)",
+        not missing,
+        f"missing: {missing}",
+    ):
         failures += 1
 
     print(f"  ℹ️   {len(nodes)} nodes, {len(edges)} edges")
 
     print()
     print("═══════════════════════════════════════════════════")
-    print("  🎉  Knowledge Graph check passed" if failures == 0 else f"  🛑  {failures} check(s) failed")
+    print(
+        "  🎉  Knowledge Graph check passed"
+        if failures == 0
+        else f"  🛑  {failures} check(s) failed"
+    )
     print("═══════════════════════════════════════════════════")
     return failures == 0
 
@@ -593,9 +732,16 @@ def check_onprem_deploy() -> bool:
             shutil.copy(env_file, base / ".env")
             for engine in ("traefik", "envoy"):
                 render_script = base / "scripts" / f"render-{engine}-config.py"
-                r = subprocess.run(["python3", str(render_script)], cwd=base, capture_output=True, text=True)
+                r = subprocess.run(
+                    ["python3", str(render_script)],
+                    cwd=base,
+                    capture_output=True,
+                    text=True,
+                )
                 rendered_ok = r.returncode == 0
-                if not _check(f"{engine}: render script exits 0", rendered_ok, r.stdout + r.stderr):
+                if not _check(
+                    f"{engine}: render script exits 0", rendered_ok, r.stdout + r.stderr
+                ):
                     failures += 1
 
                 cfg_file = (
@@ -608,39 +754,80 @@ def check_onprem_deploy() -> bool:
                         yaml.safe_load(cfg_file.read_text())
                         _check(f"{engine}: rendered config is valid YAML", True)
                     except yaml.YAMLError as e:
-                        _check(f"{engine}: rendered config is valid YAML", False, str(e))
+                        _check(
+                            f"{engine}: rendered config is valid YAML", False, str(e)
+                        )
                         failures += 1
                     cfg_file.unlink()
 
                 result = subprocess.run(
                     [
-                        "docker", "compose", "--env-file", str(base / ".env"),
-                        "-f", str(base / "docker-compose.yml"),
-                        "-f", str(base / f"docker-compose.{engine}.yml"),
-                        "--profile", "canary", "--profile", "shadow", "--profile", "with-db",
-                        "config", "--quiet",
+                        "docker",
+                        "compose",
+                        "--env-file",
+                        str(base / ".env"),
+                        "-f",
+                        str(base / "docker-compose.yml"),
+                        "-f",
+                        str(base / f"docker-compose.{engine}.yml"),
+                        "--profile",
+                        "canary",
+                        "--profile",
+                        "shadow",
+                        "--profile",
+                        "with-db",
+                        "config",
+                        "--quiet",
                     ],
                     capture_output=True,
                     text=True,
                 )
-                if not _check(f"{engine}: docker compose config validates", result.returncode == 0, result.stderr):
+                if not _check(
+                    f"{engine}: docker compose config validates",
+                    result.returncode == 0,
+                    result.stderr,
+                ):
                     failures += 1
             (base / ".env").unlink(missing_ok=True)
     else:
-        _check("docker available for compose validation", False, "skipped — docker not installed", warn_only=True)
+        _check(
+            "docker available for compose validation",
+            False,
+            "skipped — docker not installed",
+            warn_only=True,
+        )
 
     if have_helm:
         chart = base / "kubernetes"
-        result = subprocess.run(["helm", "lint", str(chart)], capture_output=True, text=True)
-        if not _check("helm lint passes", result.returncode == 0, result.stdout + result.stderr):
+        result = subprocess.run(
+            ["helm", "lint", str(chart)], capture_output=True, text=True
+        )
+        if not _check(
+            "helm lint passes", result.returncode == 0, result.stdout + result.stderr
+        ):
             failures += 1
         for set_args, label in [
             ([], "defaults"),
-            (["--set", "canary.enabled=true", "--set", "shadow.enabled=true",
-              "--set", "withDb.enabled=true", "--set", "withDb.credentialsSecretName=db-creds"], "canary+shadow+db"),
+            (
+                [
+                    "--set",
+                    "canary.enabled=true",
+                    "--set",
+                    "shadow.enabled=true",
+                    "--set",
+                    "withDb.enabled=true",
+                    "--set",
+                    "withDb.credentialsSecretName=db-creds",
+                ],
+                "canary+shadow+db",
+            ),
             (["--set", "proxyEngine=envoy-gateway"], "envoy-gateway"),
         ]:
-            result = subprocess.run(["helm", "template", "verify-check", str(chart), *set_args], capture_output=True, text=True)
+            result = subprocess.run(
+                ["helm", "template", "verify-check", str(chart), *set_args],
+                capture_output=True,
+                text=True,
+            )
             ok = result.returncode == 0
             if ok:
                 try:
@@ -648,14 +835,25 @@ def check_onprem_deploy() -> bool:
                 except yaml.YAMLError as e:
                     ok = False
                     result.stderr += str(e)
-            if not _check(f"helm template ({label}) renders valid YAML", ok, result.stderr):
+            if not _check(
+                f"helm template ({label}) renders valid YAML", ok, result.stderr
+            ):
                 failures += 1
     else:
-        _check("helm available for chart validation", False, "skipped — helm not installed", warn_only=True)
+        _check(
+            "helm available for chart validation",
+            False,
+            "skipped — helm not installed",
+            warn_only=True,
+        )
 
     print()
     print("═══════════════════════════════════════════════════")
-    print("  🎉  On-prem deploy check passed" if failures == 0 else f"  🛑  {failures} check(s) failed")
+    print(
+        "  🎉  On-prem deploy check passed"
+        if failures == 0
+        else f"  🛑  {failures} check(s) failed"
+    )
     print("═══════════════════════════════════════════════════")
     return failures == 0
 

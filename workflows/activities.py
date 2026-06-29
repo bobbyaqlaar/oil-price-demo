@@ -19,14 +19,17 @@ from pathlib import Path
 try:
     from temporalio import activity
 except ImportError:
+
     class _NoopActivity:
         def defn(self, fn=None, **_k):
             return fn if fn is not None else (lambda f: f)
+
     activity = _NoopActivity()  # type: ignore
 
 
 def _ensure_runtime_on_path() -> None:
     import os
+
     # Prefer AGENTSMITH_DIR (set in ~/.zshrc, or baked into a container
     # image's ENV) — works regardless of where this file lives (inside the
     # framework tree, copied to a tenant repo, or vendored into a container
@@ -49,9 +52,13 @@ def _ensure_runtime_on_path() -> None:
         if not candidate.is_dir():
             continue
         if str(candidate) not in sys.path:
-            sys.path.insert(0, str(candidate))          # bare imports, e.g. `from dead_letter import ...`
+            sys.path.insert(
+                0, str(candidate)
+            )  # bare imports, e.g. `from dead_letter import ...`
         if str(candidate.parent) not in sys.path:
-            sys.path.insert(0, str(candidate.parent))    # package imports, e.g. `import runtime.llm_gateway`
+            sys.path.insert(
+                0, str(candidate.parent)
+            )  # package imports, e.g. `import runtime.llm_gateway`
         return
 
 
@@ -68,7 +75,10 @@ CONFIDENCE_HITL_THRESHOLD = 0.6
 async def fetch_oil_price_activity(payload: dict) -> dict:
     """IngestionAgent: fetch latest price data. Stub data source for the reference example."""
     # TODO (tenant implementation): replace with a real price feed API call.
-    return {"price_series": payload.get("price_series", []), "tenant_id": payload["tenant_id"]}
+    return {
+        "price_series": payload.get("price_series", []),
+        "tenant_id": payload["tenant_id"],
+    }
 
 
 @activity.defn
@@ -86,26 +96,30 @@ async def run_prediction_activity(payload: dict) -> dict:
 
     mean = sum(series) / len(series) if series else 0.0
     variance = sum((p - mean) ** 2 for p in series) / len(series) if series else 0.0
-    std_dev = variance ** 0.5
+    std_dev = variance**0.5
     latest = series[-1] if series else 0.0
-    is_anomaly = std_dev > 0 and abs(latest - mean) > ANOMALY_STD_DEV_THRESHOLD * std_dev
+    is_anomaly = (
+        std_dev > 0 and abs(latest - mean) > ANOMALY_STD_DEV_THRESHOLD * std_dev
+    )
 
     # Keyed on the workflow run + activity + its actual input, not just the
     # workflow run id alone — a Temporal activity retry of THIS SPECIFIC call
     # must dedupe against itself, but a different activity in the same
     # workflow run (or the same activity called again with different input)
     # must not collide with it (FIXES_AND_CLEANUP.md P0).
-    idempotency_key = make_key({
-        "activity": "run_prediction_activity",
-        "workflow_run_id": payload.get("workflow_run_id"),
-        "price_series": series,
-    })
+    idempotency_key = make_key(
+        {
+            "activity": "run_prediction_activity",
+            "workflow_run_id": payload.get("workflow_run_id"),
+            "price_series": series,
+        }
+    )
 
     gateway = LLMGateway(tenant_id=tenant_id)
     try:
         result = await gateway.complete(
             prompt=f"Given recent oil prices {series}, predict the next price point and a "
-                   f"confidence score (0-1) as JSON: {{\"prediction\": <float>, \"confidence\": <float>}}.",
+            f'confidence score (0-1) as JSON: {{"prediction": <float>, "confidence": <float>}}.',
             model_hint="validator",  # cheap/fast tier for a bounded forecasting prompt
             workflow_id=payload.get("workflow_run_id"),
             idempotency_key=idempotency_key,
@@ -144,8 +158,14 @@ async def decide_action_activity(payload: dict) -> dict:
     of failing the run. This is the exact CRM-example shape: a malformed
     field is the kind of error a human edit fixes, not a retry.
     """
-    if "prediction" not in payload or not isinstance(payload.get("confidence"), (int, float)):
-        bad_keys = [k for k in payload if k not in ("tenant_id", "is_anomaly", "needs_hitl", "cost_usd")]
+    if "prediction" not in payload or not isinstance(
+        payload.get("confidence"), (int, float)
+    ):
+        bad_keys = [
+            k
+            for k in payload
+            if k not in ("tenant_id", "is_anomaly", "needs_hitl", "cost_usd")
+        ]
         raise ValueError(
             f"decide_action_activity payload missing required prediction/confidence fields "
             f"(got keys: {bad_keys}) — downstream order API requires {{'prediction': <float>, 'confidence': <float>}}"

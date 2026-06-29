@@ -60,7 +60,11 @@ def run_judge(prompt: str, judge_model: str) -> dict[str, Any]:
             force_model=judge_model,
         )
         m = re.search(r"\{.*\}", raw, re.DOTALL)
-        scored = json.loads(m.group(0)) if m else {"correctness": 0, "tool_accuracy": 0, "score": 0.0}
+        scored = (
+            json.loads(m.group(0))
+            if m
+            else {"correctness": 0, "tool_accuracy": 0, "score": 0.0}
+        )
     except Exception as exc:
         scored = {"correctness": 0, "tool_accuracy": 0, "score": 0.0, "error": str(exc)}
     return scored
@@ -76,7 +80,9 @@ def judge_case(
     Score one golden case against the configured judge. Used by run-evals.py.
     """
     historical = criteria.get("historical_learnings", [])
-    historical_text = "\n".join(f"- {item}" for item in historical) if historical else "(none yet)"
+    historical_text = (
+        "\n".join(f"- {item}" for item in historical) if historical else "(none yet)"
+    )
 
     prompt = judge_prompt(
         instructions=criteria.get("instructions", ""),

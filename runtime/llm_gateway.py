@@ -40,12 +40,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CompletionResult:
     """Result of a gateway-routed completion."""
+
     text: str
     model_used: str
     input_tokens: int
     output_tokens: int
     cost_usd: float
-    degrade_tier: Optional[str] = None    # None = nominal; "downgrade" | "local" | etc.
+    degrade_tier: Optional[str] = None  # None = nominal; "downgrade" | "local" | etc.
 
 
 class BudgetExceededError(RuntimeError):
@@ -53,6 +54,7 @@ class BudgetExceededError(RuntimeError):
 
 
 # ── Model registry (§29 Model Registry) ───────────────────────────────────────
+
 
 def _repo_root() -> Path:
     cwd = Path.cwd()
@@ -68,6 +70,7 @@ _FRAMEWORK_MODELS_YAML = Path(__file__).resolve().parent / "models.yaml"
 def _load_yaml(path: Path) -> dict:
     try:
         import yaml  # type: ignore
+
         with path.open() as fh:
             return yaml.safe_load(fh) or {}
     except Exception:
@@ -104,8 +107,9 @@ def load_model_registry() -> dict:
 
 # ── Budget store (Postgres or Redis backend, §25/§29) ─────────────────────────
 
+
 def _current_period() -> str:
-    """"YYYY-MM" in UTC — pinned explicitly rather than via bare
+    """ "YYYY-MM" in UTC — pinned explicitly rather than via bare
     time.strftime("%Y-%m"), which uses the server's LOCAL timezone.
     portal/lib/cost.ts derives the same period via
     `new Date().toISOString().slice(0, 7)`, which is always UTC; a worker
@@ -186,6 +190,7 @@ class _MemoryBudgetBackend(_BudgetBackend):
 class _RedisBudgetBackend(_BudgetBackend):
     def __init__(self) -> None:
         import redis  # type: ignore
+
         self._client = redis.from_url(os.environ["REDIS_URL"])
 
     def _key(self, tenant_id: str) -> str:
@@ -243,6 +248,7 @@ class _PostgresBudgetBackend(_BudgetBackend):
 
     def _connect(self):
         import psycopg2  # type: ignore
+
         return psycopg2.connect(self._dsn)
 
     def _period(self) -> str:
@@ -320,10 +326,13 @@ def _make_budget_backend() -> _BudgetBackend:
         return _PostgresBudgetBackend()
     if backend == "memory":
         return _MemoryBudgetBackend()
-    raise ValueError(f"Unknown BUDGET_BACKEND={backend!r}. Use 'memory', 'redis', or 'postgres'.")
+    raise ValueError(
+        f"Unknown BUDGET_BACKEND={backend!r}. Use 'memory', 'redis', or 'postgres'."
+    )
 
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
+
 
 class LLMGateway:
     """
@@ -354,6 +363,7 @@ class LLMGateway:
     def _make_idempotency_store():
         try:
             from idempotency import IdempotencyStore  # type: ignore
+
             return IdempotencyStore()
         except Exception as exc:
             # Missing REDIS_URL/DATABASE_URL, backend lib not installed, etc.
@@ -362,7 +372,10 @@ class LLMGateway:
             # construction — but logged, not silently invisible, since this
             # now means a real backend failed to initialize, not "not
             # implemented yet".
-            logger.warning("idempotency store unavailable, duplicate-call suppression disabled: %s", exc)
+            logger.warning(
+                "idempotency store unavailable, duplicate-call suppression disabled: %s",
+                exc,
+            )
             return None
 
     # ── Budget ────────────────────────────────────────────────────────────────
@@ -395,7 +408,9 @@ class LLMGateway:
 
     @staticmethod
     def _is_free_tier(cfg: dict) -> bool:
-        return cfg.get("provider") == "ollama" or cfg.get("cost_per_input_token", 1) == 0
+        return (
+            cfg.get("provider") == "ollama" or cfg.get("cost_per_input_token", 1) == 0
+        )
 
     @staticmethod
     def _is_provider_exhausted(exc: Exception) -> bool:
@@ -403,17 +418,22 @@ class LLMGateway:
         retrying; degrade to the next tier instead.  Covers billing, quota, and
         auth errors that will not resolve on their own."""
         msg = str(exc).lower()
-        return any(k in msg for k in (
-            "credit balance is too low",
-            "insufficient_quota",
-            "rate limit",
-            "billing",
-            "payment required",
-            "429",
-            "overloaded",
-        ))
+        return any(
+            k in msg
+            for k in (
+                "credit balance is too low",
+                "insufficient_quota",
+                "rate limit",
+                "billing",
+                "payment required",
+                "429",
+                "overloaded",
+            )
+        )
 
-    def _resolve_role(self, model_hint: str, budget: BudgetStatus) -> tuple[str, Optional[str]]:
+    def _resolve_role(
+        self, model_hint: str, budget: BudgetStatus
+    ) -> tuple[str, Optional[str]]:
         """Walk the degrade ladder. Returns (role, degrade_tier); degrade_tier is None at full strength."""
         if not budget.breached:
             return model_hint, None
@@ -466,6 +486,7 @@ class LLMGateway:
             return
         try:
             import httpx
+
             httpx.post(
                 f"{ops_portal_url.rstrip('/')}/api/runs/ingest",
                 json={
@@ -480,7 +501,12 @@ class LLMGateway:
                 timeout=5.0,
             )
         except Exception as exc:
-            logger.debug("run-status report failed tenant=%s run_id=%s: %s", self.tenant_id, run_id, exc)
+            logger.debug(
+                "run-status report failed tenant=%s run_id=%s: %s",
+                self.tenant_id,
+                run_id,
+                exc,
+            )
 
     # ── Span attribute recording (§15, §29) ──────────────────────────────────
 
@@ -494,6 +520,7 @@ class LLMGateway:
     ) -> None:
         try:
             from opentelemetry import trace
+
             span = trace.get_current_span()
             if span is None:
                 return
@@ -529,22 +556,37 @@ class LLMGateway:
             try:
                 cached = self._idempotency.get(idempotency_key)
                 if cached is not None:
-                    logger.info("idempotency cache hit tenant=%s key=%s", self.tenant_id, idempotency_key)
+                    logger.info(
+                        "idempotency cache hit tenant=%s key=%s",
+                        self.tenant_id,
+                        idempotency_key,
+                    )
                     return CompletionResult(**cached)
-                logger.debug("idempotency cache miss tenant=%s key=%s", self.tenant_id, idempotency_key)
+                logger.debug(
+                    "idempotency cache miss tenant=%s key=%s",
+                    self.tenant_id,
+                    idempotency_key,
+                )
             except Exception as exc:
                 # Now that the backends are real (Postgres/Redis), a failure
                 # here is a live infra error (DB down, bad creds), not the
                 # old "backend not implemented" case — log it instead of
                 # silently treating every failure as a cache miss.
-                logger.error("idempotency lookup failed tenant=%s key=%s: %s", self.tenant_id, idempotency_key, exc)
+                logger.error(
+                    "idempotency lookup failed tenant=%s key=%s: %s",
+                    self.tenant_id,
+                    idempotency_key,
+                    exc,
+                )
 
         budget = self.get_budget_status()
         role, degrade_tier = self._resolve_role(model_hint, budget)
 
         cfg = self.models.get(role)
         if not cfg:
-            raise ValueError(f"No model registered for role {role!r}. Check models.yaml.")
+            raise ValueError(
+                f"No model registered for role {role!r}. Check models.yaml."
+            )
 
         model_id = cfg["id"]
         messages = self._coerce_messages(prompt)
@@ -562,7 +604,9 @@ class LLMGateway:
         )
         reserved = True
         if estimated_cost_usd and not self._is_free_tier(cfg):
-            reserved = self._budget.try_reserve(self.tenant_id, estimated_cost_usd, self.budget_cap_usd)
+            reserved = self._budget.try_reserve(
+                self.tenant_id, estimated_cost_usd, self.budget_cap_usd
+            )
             if not reserved:
                 raise BudgetExceededError(
                     f"tenant={self.tenant_id} budget reservation of ${estimated_cost_usd:.4f} for "
@@ -583,7 +627,11 @@ class LLMGateway:
         # workflow_id (including concurrent/parallel ones, e.g. fan-out to
         # multiple LLMs) into one widget status rather than relying on
         # row identity to do that grouping.
-        run_id = f"{workflow_id}-{uuid.uuid4().hex[:8]}" if workflow_id else f"{self.tenant_id}-{uuid.uuid4().hex[:12]}"
+        run_id = (
+            f"{workflow_id}-{uuid.uuid4().hex[:8]}"
+            if workflow_id
+            else f"{self.tenant_id}-{uuid.uuid4().hex[:12]}"
+        )
         self._report_run_status(run_id, "running", workflow_id=workflow_id)
 
         # Try the chosen tier; on provider-level exhaustion (billing, quota,
@@ -597,15 +645,21 @@ class LLMGateway:
             if not attempt_cfg:
                 continue
             try:
-                text, in_tok, out_tok = await self._invoke(attempt_cfg, messages, max_tokens, temperature)
+                text, in_tok, out_tok = await self._invoke(
+                    attempt_cfg, messages, max_tokens, temperature
+                )
                 if attempt_role != role:
                     # Record the tier we actually used
-                    degrade_tier = "local" if self._is_free_tier(attempt_cfg) else "downgrade"
+                    degrade_tier = (
+                        "local" if self._is_free_tier(attempt_cfg) else "downgrade"
+                    )
                     cfg = attempt_cfg
                     model_id = attempt_cfg["id"]
                     logger.warning(
                         "Degraded from %r to %r due to provider error: %s",
-                        role, attempt_role, last_exc,
+                        role,
+                        attempt_role,
+                        last_exc,
                     )
                 last_exc = None
                 break
@@ -615,7 +669,9 @@ class LLMGateway:
                 if self._is_provider_exhausted(exc):
                     logger.warning(
                         "Provider exhausted for role=%r model=%r: %s — trying next tier",
-                        attempt_role, attempt_cfg.get("id"), exc,
+                        attempt_role,
+                        attempt_cfg.get("id"),
+                        exc,
                     )
                     continue
                 # Non-exhaustion error (bad prompt, network timeout, etc.) — fail fast
@@ -623,17 +679,23 @@ class LLMGateway:
 
         if last_exc is not None:
             if reserved and estimated_cost_usd:
-                self._budget.add_spend(self.tenant_id, -estimated_cost_usd)  # release the reservation
-            self._report_run_status(run_id, "failed", workflow_id=workflow_id, error_summary=str(last_exc)[:500])
+                self._budget.add_spend(
+                    self.tenant_id, -estimated_cost_usd
+                )  # release the reservation
+            self._report_run_status(
+                run_id,
+                "failed",
+                workflow_id=workflow_id,
+                error_summary=str(last_exc)[:500],
+            )
             if tried:
                 raise RuntimeError(
                     f"All model tiers exhausted (tried: {tried}). Last error: {last_exc}"
                 ) from last_exc
             raise last_exc
 
-        cost_usd = (
-            in_tok * cfg.get("cost_per_input_token", 0)
-            + out_tok * cfg.get("cost_per_output_token", 0)
+        cost_usd = in_tok * cfg.get("cost_per_input_token", 0) + out_tok * cfg.get(
+            "cost_per_output_token", 0
         )
         if reserved and estimated_cost_usd:
             # Reconcile: replace the (conservative) reservation with the
@@ -647,8 +709,12 @@ class LLMGateway:
         elif cost_usd:
             self._budget.add_spend(self.tenant_id, cost_usd)
 
-        self._record_span_attributes(role, model_id, degrade_tier, workflow_id, cost_usd)
-        self._report_run_status(run_id, "degraded" if degrade_tier else "success", workflow_id=workflow_id)
+        self._record_span_attributes(
+            role, model_id, degrade_tier, workflow_id, cost_usd
+        )
+        self._report_run_status(
+            run_id, "degraded" if degrade_tier else "success", workflow_id=workflow_id
+        )
 
         result = CompletionResult(
             text=text,
@@ -663,7 +729,12 @@ class LLMGateway:
             try:
                 self._idempotency.set(idempotency_key, result.__dict__)
             except Exception as exc:
-                logger.error("idempotency write failed tenant=%s key=%s: %s", self.tenant_id, idempotency_key, exc)
+                logger.error(
+                    "idempotency write failed tenant=%s key=%s: %s",
+                    self.tenant_id,
+                    idempotency_key,
+                    exc,
+                )
 
         return result
 
@@ -682,6 +753,7 @@ class LLMGateway:
         request/auth/model-id error will fail identically on retry and
         retrying it just burns the attempt budget for no benefit."""
         import httpx
+
         if isinstance(exc, httpx.TransportError):
             return True
         if isinstance(exc, httpx.HTTPStatusError):
@@ -711,14 +783,28 @@ class LLMGateway:
         succeed differently the second time.
         """
         import httpx
-        from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+        from tenacity import (
+            retry,
+            retry_if_exception,
+            stop_after_attempt,
+            wait_exponential,
+        )
+
         try:
             from runtime.provider_dispatch import (
-                build_cloud_request, build_request, is_cloud_provider, parse_cloud_response, parse_response,
+                build_cloud_request,
+                build_request,
+                is_cloud_provider,
+                parse_cloud_response,
+                parse_response,
             )
         except ImportError:
             from provider_dispatch import (  # type: ignore
-                build_cloud_request, build_request, is_cloud_provider, parse_cloud_response, parse_response,
+                build_cloud_request,
+                build_request,
+                is_cloud_provider,
+                parse_cloud_response,
+                parse_response,
             )
 
         provider = cfg.get("provider", "openai")
@@ -731,7 +817,9 @@ class LLMGateway:
             # CloudProviderAdapter owns that, and returns a full URL rather
             # than a path since project/region/deployment/endpoint-id are
             # baked into the URL itself.
-            url, headers, body = build_cloud_request(provider, model_id, messages, cfg, max_tokens, temperature)
+            url, headers, body = build_cloud_request(
+                provider, model_id, messages, cfg, max_tokens, temperature
+            )
         else:
             # base_url/api_key_env are config-driven (models.yaml `endpoint` /
             # `api_key_env` fields) so a tenant can point a provider at a proxy,
@@ -744,10 +832,15 @@ class LLMGateway:
                 api_key = os.environ.get(api_key_env, "")
                 base_url = cfg.get("endpoint") or "https://api.anthropic.com"
             elif provider == "ollama":
-                base_url = os.path.expandvars(cfg.get("endpoint", "${OLLAMA_BASE_URL}/v1"))
+                base_url = os.path.expandvars(
+                    cfg.get("endpoint", "${OLLAMA_BASE_URL}/v1")
+                )
                 # expandvars leaves unset variables as literal "${VAR}" — not a valid URL.
                 if not base_url.startswith("http"):
-                    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434") + "/v1"
+                    base_url = (
+                        os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+                        + "/v1"
+                    )
                 api_key = "ollama"
             elif provider == "groq":
                 # Groq's API is OpenAI-compatible (same request/response shape,
@@ -763,7 +856,9 @@ class LLMGateway:
                 base_url = cfg.get("endpoint") or "https://api.openai.com/v1"
             base_url = os.path.expandvars(base_url)
 
-            path, headers, body = build_request(provider, model_id, messages, api_key, max_tokens, temperature)
+            path, headers, body = build_request(
+                provider, model_id, messages, api_key, max_tokens, temperature
+            )
             url = base_url.rstrip("/") + path
 
         @retry(

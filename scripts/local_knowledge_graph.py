@@ -32,6 +32,7 @@ from typing import Any, Literal, Optional
 try:
     import networkx as nx
     from networkx.readwrite import json_graph as nx_json
+
     NX_AVAILABLE = True
 except ImportError:
     NX_AVAILABLE = False
@@ -51,6 +52,7 @@ def _graph_path() -> Path:
 
 
 # ── Core class ────────────────────────────────────────────────────────────────
+
 
 class AgentKnowledgeGraph:
     """
@@ -81,8 +83,11 @@ class AgentKnowledgeGraph:
                 # file with an empty one, destroying the existing graph with
                 # no signal as to why — at minimum the user should see this.
                 import sys
-                print(f"⚠️  Knowledge Graph at {self._path} is unreadable ({exc}); starting from an empty graph.",
-                      file=sys.stderr)
+
+                print(
+                    f"⚠️  Knowledge Graph at {self._path} is unreadable ({exc}); starting from an empty graph.",
+                    file=sys.stderr,
+                )
         return nx.DiGraph()
 
     def save(self) -> None:
@@ -200,7 +205,13 @@ class AgentKnowledgeGraph:
             }
         """
         if not self._g.has_node(anchor_path):
-            return {"anchor": anchor_path, "nodes": [], "edges": [], "guardrails": [], "incidents": []}
+            return {
+                "anchor": anchor_path,
+                "nodes": [],
+                "edges": [],
+                "guardrails": [],
+                "incidents": [],
+            }
 
         # BFS from anchor
         reachable = nx.single_source_shortest_path_length(
@@ -221,10 +232,7 @@ class AgentKnowledgeGraph:
             elif attrs.get("node_type") == "ProductionIncident":
                 incidents.append(row)
 
-        edges_out = [
-            {"source": s, "target": t, **d}
-            for s, t, d in sg.edges(data=True)
-        ]
+        edges_out = [{"source": s, "target": t, **d} for s, t, d in sg.edges(data=True)]
 
         return {
             "anchor": anchor_path,
@@ -246,12 +254,16 @@ class AgentKnowledgeGraph:
     def impacted_files(self, rel_path: str) -> list[str]:
         """Return files that import rel_path (direct reverse-dependency lookup)."""
         return [
-            src for src, tgt, data in self._g.in_edges(rel_path, data=True)
+            src
+            for src, tgt, data in self._g.in_edges(rel_path, data=True)
             if data.get("edge_type") == "IMPORTS"
         ]
 
     def stats(self) -> dict[str, int]:
-        counts: dict[str, int] = {"total": self._g.number_of_nodes(), "edges": self._g.number_of_edges()}
+        counts: dict[str, int] = {
+            "total": self._g.number_of_nodes(),
+            "edges": self._g.number_of_edges(),
+        }
         for nt in ("CodebaseFile", "Guardrail", "ProductionIncident"):
             counts[nt] = sum(
                 1 for _, d in self._g.nodes(data=True) if d.get("node_type") == nt
@@ -268,10 +280,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="AgentKnowledgeGraph CLI")
-    parser.add_argument("--stats",   action="store_true", help="Print node/edge counts")
-    parser.add_argument("--context", metavar="FILE",      help="Fetch subgraph context for FILE")
-    parser.add_argument("--symbol",  metavar="SYMBOL",    help="Find files defining SYMBOL")
-    parser.add_argument("--hops",    type=int, default=2, help="Subgraph hop depth (default: 2)")
+    parser.add_argument("--stats", action="store_true", help="Print node/edge counts")
+    parser.add_argument(
+        "--context", metavar="FILE", help="Fetch subgraph context for FILE"
+    )
+    parser.add_argument("--symbol", metavar="SYMBOL", help="Find files defining SYMBOL")
+    parser.add_argument(
+        "--hops", type=int, default=2, help="Subgraph hop depth (default: 2)"
+    )
     args = parser.parse_args()
 
     kg = AgentKnowledgeGraph()
@@ -279,7 +295,13 @@ if __name__ == "__main__":
     if args.stats:
         print(json.dumps(kg.stats(), indent=2))
     elif args.context:
-        print(json.dumps(kg.fetch_subgraph_context_window(args.context, hops=args.hops), indent=2, default=str))
+        print(
+            json.dumps(
+                kg.fetch_subgraph_context_window(args.context, hops=args.hops),
+                indent=2,
+                default=str,
+            )
+        )
     elif args.symbol:
         files = kg.find_files_by_symbol(args.symbol)
         print(json.dumps({"symbol": args.symbol, "files": files}, indent=2))

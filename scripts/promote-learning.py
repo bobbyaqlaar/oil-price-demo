@@ -43,6 +43,7 @@ def _log_path() -> Path:
 
 # ── Core promoter ─────────────────────────────────────────────────────────────
 
+
 def promote(
     case_id: str,
     input_query: str,
@@ -68,7 +69,7 @@ def promote(
         Dict with 'case_id', 'golden_count', 'hitl_entries_resolved'.
     """
     resolver = resolved_by or os.environ.get("AGENT_OWNER_ID", "unknown")
-    ts       = _iso_now()
+    ts = _iso_now()
 
     # ── 1. Append to golden dataset ───────────────────────────────────────────
     golden = _load_json(_golden_path(), default=[])
@@ -79,12 +80,12 @@ def promote(
         golden = [c for c in golden if c.get("id") != case_id]
 
     new_case = {
-        "id":              case_id,
-        "input":           input_query,
-        "expected_tool":   expected_tool,
+        "id": case_id,
+        "input": input_query,
+        "expected_tool": expected_tool,
         "reference_output": correct_output,
-        "promoted_at":     ts,
-        "promoted_by":     resolver,
+        "promoted_at": ts,
+        "promoted_by": resolver,
         "resolution_note": resolution_note or "",
     }
     golden.append(new_case)
@@ -93,9 +94,10 @@ def promote(
 
     # ── 2. Append resolution as judge learning ────────────────────────────────
     if resolution_note:
-        criteria = _load_json(_criteria_path(), default={
-            "name": "Default", "instructions": "", "historical_learnings": []
-        })
+        criteria = _load_json(
+            _criteria_path(),
+            default={"name": "Default", "instructions": "", "historical_learnings": []},
+        )
         learnings: list = criteria.setdefault("historical_learnings", [])
         learning_entry = f"[{ts}] [{case_id}] {resolution_note}"
         if learning_entry not in learnings:
@@ -106,7 +108,9 @@ def promote(
     # ── 3. Mark .agent-history.log entries as resolved ────────────────────────
     resolved_count = _mark_log_resolved(case_id, resolver, ts)
     if resolved_count:
-        print(f"✅ Marked {resolved_count} log entry/entries hitl_resolved for event={case_id!r}")
+        print(
+            f"✅ Marked {resolved_count} log entry/entries hitl_resolved for event={case_id!r}"
+        )
     else:
         print(f"   (No matching unresolved log entries found for event={case_id!r})")
 
@@ -115,6 +119,7 @@ def promote(
         print("\n🔄 Re-running eval scorecard to validate fix...")
         try:
             from run_evals import run_scorecard
+
             exit_code = run_scorecard()
             if exit_code == 0:
                 print("✅ Evals pass after promotion.")
@@ -124,8 +129,8 @@ def promote(
             print(f"⚠️  Could not re-run evals: {exc}")
 
     return {
-        "case_id":               case_id,
-        "golden_count":          len(golden),
+        "case_id": case_id,
+        "golden_count": len(golden),
         "hitl_entries_resolved": resolved_count,
     }
 
@@ -150,7 +155,7 @@ def _mark_log_resolved(event_filter: str, resolver: str, ts: str) -> int:
                     and entry.get("level") in ("MAJOR", "CRITICAL")
                     and not entry.get("hitl_resolved", True)
                 ):
-                    entry["hitl_resolved"]    = True
+                    entry["hitl_resolved"] = True
                     entry["hitl_resolved_by"] = resolver
                     entry["hitl_resolved_at"] = ts
                     raw = json.dumps(entry, default=str)
@@ -165,6 +170,7 @@ def _mark_log_resolved(event_filter: str, resolver: str, ts: str) -> int:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _load_json(path: Path, default: object = None) -> object:
     if not path.exists():
@@ -191,13 +197,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Promote a production trace into the golden eval dataset."
     )
-    parser.add_argument("case_id",        help="Unique case ID (may match log event name)")
-    parser.add_argument("input_query",    help="Input that caused the issue")
-    parser.add_argument("correct_output", help="The correct expected output or behaviour")
-    parser.add_argument("--tool",         default="any",  help="Expected tool name")
-    parser.add_argument("--note",         default="",     help="Resolution explanation")
-    parser.add_argument("--resolved-by",  default="",     help="Resolver email/ID")
-    parser.add_argument("--no-rerun",     action="store_true", help="Skip eval re-run")
+    parser.add_argument("case_id", help="Unique case ID (may match log event name)")
+    parser.add_argument("input_query", help="Input that caused the issue")
+    parser.add_argument(
+        "correct_output", help="The correct expected output or behaviour"
+    )
+    parser.add_argument("--tool", default="any", help="Expected tool name")
+    parser.add_argument("--note", default="", help="Resolution explanation")
+    parser.add_argument("--resolved-by", default="", help="Resolver email/ID")
+    parser.add_argument("--no-rerun", action="store_true", help="Skip eval re-run")
     args = parser.parse_args()
 
     result = promote(

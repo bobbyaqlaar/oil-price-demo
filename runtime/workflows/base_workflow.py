@@ -30,6 +30,7 @@ from typing import Any, Dict, Optional
 try:
     from temporalio import activity, workflow
     from temporalio.common import RetryPolicy
+
     _HAS_TEMPORAL = True
 except ImportError:
     _HAS_TEMPORAL = False
@@ -37,6 +38,7 @@ except ImportError:
 
     class _Workflow:
         """No-op stand-in so this module is importable without temporalio installed."""
+
         def signal(self, fn=None, **_k):
             return fn if fn is not None else (lambda f: f)
 
@@ -54,6 +56,7 @@ RECOVERABLE_STEP_MAX_ATTEMPTS = 5
 
 
 if _HAS_TEMPORAL:
+
     @activity.defn
     async def dlq_enqueue_activity(input: dict) -> dict:
         """Generic DLQ enqueue activity — wraps DeadLetterQueue.enqueue() so
@@ -110,6 +113,7 @@ class BaseAgentWorkflow:
         self._gate_fixes: Dict[str, Any] = {}
 
     if _HAS_TEMPORAL:
+
         @workflow.signal
         def hitl_approved(self, approved: bool) -> None:
             """External signal fired by the Phoenix annotation -> Ops Portal bridge on HITL review."""
@@ -256,7 +260,9 @@ class BaseAgentWorkflow:
                 break
 
             try:
-                await workflow.wait_condition(lambda: gate_id in self._gate_fixes, timeout=timeout)
+                await workflow.wait_condition(
+                    lambda: gate_id in self._gate_fixes, timeout=timeout
+                )
             except TimeoutError:
                 return AgentWorkflowResult(status="dead_letter")
 

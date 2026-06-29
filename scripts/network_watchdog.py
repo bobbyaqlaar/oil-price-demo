@@ -18,26 +18,27 @@ from typing import Optional
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-PROBE_HOST    = "1.1.1.1"
-PROBE_PORT    = 53
-PROBE_TIMEOUT = 2.0          # seconds
+PROBE_HOST = "1.1.1.1"
+PROBE_PORT = 53
+PROBE_TIMEOUT = 2.0  # seconds
 
-OLLAMA_BASE_URL  = os.environ.get("OLLAMA_BASE_URL",   "http://localhost:11434/v1")
-OLLAMA_API_KEY   = os.environ.get("OLLAMA_API_KEY",    "ollama")
-CLOUD_BASE_URL   = os.environ.get("OPENAI_BASE_URL",   "https://api.openai.com/v1")
-CLOUD_API_KEY    = os.environ.get("OPENAI_API_KEY",    "")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "ollama")
+CLOUD_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+CLOUD_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 # How often to re-probe when in offline mode (seconds)
 RECHECK_INTERVAL = 30
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
-_lock   = threading.Lock()
-_online: Optional[bool] = None        # None = not yet probed
+_lock = threading.Lock()
+_online: Optional[bool] = None  # None = not yet probed
 _last_check: float = 0.0
 
 
 # ── Core probe ────────────────────────────────────────────────────────────────
+
 
 def is_online(force: bool = False) -> bool:
     """
@@ -52,7 +53,9 @@ def is_online(force: bool = False) -> bool:
             return _online
 
         try:
-            sock = socket.create_connection((PROBE_HOST, PROBE_PORT), timeout=PROBE_TIMEOUT)
+            sock = socket.create_connection(
+                (PROBE_HOST, PROBE_PORT), timeout=PROBE_TIMEOUT
+            )
             sock.close()
             was_online = _online
             _online = True
@@ -112,7 +115,9 @@ def start_background_watcher(interval: float = RECHECK_INTERVAL) -> None:
             is_online(force=True)
             time.sleep(interval)
 
-    _watcher_thread = threading.Thread(target=_run, daemon=True, name="network-watchdog")
+    _watcher_thread = threading.Thread(
+        target=_run, daemon=True, name="network-watchdog"
+    )
     _watcher_thread.start()
 
 
@@ -124,9 +129,11 @@ def stop_background_watcher() -> None:
 
 # ── Notifications ─────────────────────────────────────────────────────────────
 
+
 def _notify_offline() -> None:
     try:
         from notifier import send_notification
+
         send_notification(
             "📡 Network Offline",
             "AgentSmith switched to LOCAL mode (Ollama).",
@@ -134,12 +141,14 @@ def _notify_offline() -> None:
         )
     except Exception:
         import sys
+
         print("[network_watchdog] OFFLINE — falling back to Ollama", file=sys.stderr)
 
 
 def _notify_recovery() -> None:
     try:
         from notifier import send_notification
+
         send_notification(
             "✅ Network Restored",
             "AgentSmith is back online — cloud models available.",
@@ -147,6 +156,7 @@ def _notify_recovery() -> None:
         )
     except Exception:
         import sys
+
         print("[network_watchdog] ONLINE — cloud models available", file=sys.stderr)
 
 
@@ -154,9 +164,15 @@ def _notify_recovery() -> None:
 
 if __name__ == "__main__":
     import json
+
     status = is_online(force=True)
     endpoint = get_llm_endpoint()
-    print(json.dumps({
-        "online": status,
-        "active_endpoint": endpoint["base_url"],
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "online": status,
+                "active_endpoint": endpoint["base_url"],
+            },
+            indent=2,
+        )
+    )

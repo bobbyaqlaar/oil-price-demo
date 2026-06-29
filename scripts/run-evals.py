@@ -49,6 +49,7 @@ def _results_path() -> Path:
 
 # ── Load fixtures ─────────────────────────────────────────────────────────────
 
+
 def _load_golden_cases() -> list[dict]:
     path = _golden_path()
     if not path.exists():
@@ -60,12 +61,16 @@ def _load_golden_cases() -> list[dict]:
 def _load_criteria() -> dict:
     path = _criteria_path()
     if not path.exists():
-        return {"name": "Default", "instructions": "Judge correctness, safety, and quality."}
+        return {
+            "name": "Default",
+            "instructions": "Judge correctness, safety, and quality.",
+        }
     with path.open() as fh:
         return json.load(fh)
 
 
 # ── Judge invocation ──────────────────────────────────────────────────────────
+
 
 def _judge_case(
     case: dict,
@@ -87,6 +92,7 @@ def _judge_case(
     if project_response is None:
         try:
             from local_agent_stack import run_pipeline
+
             result = run_pipeline(task=case["input"])
             project_response = result.get("code", "") or result.get("validation", "")
         except Exception as exc:
@@ -97,30 +103,31 @@ def _judge_case(
     scored = _shared_judge_case(case, criteria, judge_model, project_response)
 
     return {
-        "case_id":        case.get("id", "unknown"),
-        "input":          case["input"][:120],
-        "expected_tool":  case.get("expected_tool", "any"),
-        "latency_ms":     elapsed_ms,
-        "correctness":    scored.get("correctness", 0),
-        "tool_accuracy":  scored.get("tool_accuracy", 0),
-        "score":          float(scored.get("score", 0.0)),
-        "quality_notes":  scored.get("quality_notes", ""),
-        "error":          scored.get("error"),
+        "case_id": case.get("id", "unknown"),
+        "input": case["input"][:120],
+        "expected_tool": case.get("expected_tool", "any"),
+        "latency_ms": elapsed_ms,
+        "correctness": scored.get("correctness", 0),
+        "tool_accuracy": scored.get("tool_accuracy", 0),
+        "score": float(scored.get("score", 0.0)),
+        "quality_notes": scored.get("quality_notes", ""),
+        "error": scored.get("error"),
     }
 
 
 # ── Scorecard ─────────────────────────────────────────────────────────────────
+
 
 def run_scorecard(fail_below: float = 0.80) -> int:
     """
     Run all golden cases and print scorecard.
     Returns exit code: 0 = pass, 1 = fail, 2 = skipped.
     """
-    cases    = _load_golden_cases()
+    cases = _load_golden_cases()
     criteria = _load_criteria()
-    judge    = os.environ.get("AGENT_JUDGE_MODEL", "claude-sonnet-4-6")
-    project  = _repo_root().name
-    ts       = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    judge = os.environ.get("AGENT_JUDGE_MODEL", "claude-sonnet-4-6")
+    project = _repo_root().name
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     print(f"🎯 AgentSmith Eval — {project} @ {ts}")
     print(f"   Judge model:  {judge}")
@@ -138,18 +145,20 @@ def run_scorecard(fail_below: float = 0.80) -> int:
 
     results = []
     for i, case in enumerate(cases, 1):
-        print(f"   [{i}/{len(cases)}] {case.get('id', 'case')} ...", end=" ", flush=True)
+        print(
+            f"   [{i}/{len(cases)}] {case.get('id', 'case')} ...", end=" ", flush=True
+        )
         r = _judge_case(case, criteria, judge)
         results.append(r)
         status = "✅" if r["score"] >= fail_below else "❌"
         print(f"{status} score={r['score']:.2f} latency={r['latency_ms']}ms")
 
     # Aggregate
-    avg_score       = sum(r["score"] for r in results) / len(results)
+    avg_score = sum(r["score"] for r in results) / len(results)
     avg_correctness = sum(r["correctness"] for r in results) / len(results)
-    avg_tool_acc    = sum(r["tool_accuracy"] for r in results) / len(results)
-    avg_latency_ms  = sum(r["latency_ms"] for r in results) / len(results)
-    passed          = avg_score >= fail_below
+    avg_tool_acc = sum(r["tool_accuracy"] for r in results) / len(results)
+    avg_latency_ms = sum(r["latency_ms"] for r in results) / len(results)
+    passed = avg_score >= fail_below
 
     print("")
     print("─────────────────────────────────────────────")
@@ -164,22 +173,24 @@ def run_scorecard(fail_below: float = 0.80) -> int:
         failing = [r for r in results if r["score"] < fail_below]
         print(f"\n  Failing cases ({len(failing)}):")
         for r in failing:
-            print(f"    • [{r['case_id']}] score={r['score']:.2f}: {r['quality_notes']}")
+            print(
+                f"    • [{r['case_id']}] score={r['score']:.2f}: {r['quality_notes']}"
+            )
 
     # Persist results
     output = {
-        "timestamp":       ts,
-        "project":         project,
-        "judge_model":     judge,
-        "criteria":        criteria.get("name", "default"),
-        "total_cases":     len(cases),
-        "avg_score":       avg_score,
+        "timestamp": ts,
+        "project": project,
+        "judge_model": judge,
+        "criteria": criteria.get("name", "default"),
+        "total_cases": len(cases),
+        "avg_score": avg_score,
         "avg_correctness": avg_correctness,
         "avg_tool_accuracy": avg_tool_acc,
-        "avg_latency_ms":  avg_latency_ms,
-        "threshold":       fail_below,
-        "passed":          passed,
-        "results":         results,
+        "avg_latency_ms": avg_latency_ms,
+        "threshold": fail_below,
+        "passed": passed,
+        "results": results,
     }
     with _results_path().open("w") as fh:
         json.dump(output, fh, indent=2)
@@ -188,6 +199,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
     # Desktop notification
     try:
         from notifier import notify_eval_result
+
         notify_eval_result(avg_score, fail_below, project=project)
     except Exception:  # fail-open: a desktop notification failing must not affect the eval's pass/fail result
         pass

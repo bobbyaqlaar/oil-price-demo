@@ -30,24 +30,27 @@ from typing import Any, Literal, Optional
 
 # ── OpenTelemetry setup ───────────────────────────────────────────────────────
 
+
 def _setup_otel(project_name: str, session_id: str) -> Any:
     """Initialise OTLP tracer. Returns the tracer or a no-op if unavailable."""
     endpoint = os.environ.get(
         "AGENT_PHOENIX_ENDPOINT",
-        os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:6006")
+        os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:6006"),
     )
     try:
         from opentelemetry import trace
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
         from opentelemetry.sdk.resources import Resource
 
         from agent_logger import _tenant_id
 
         resource_attrs = {
-            "service.name":    project_name,
-            "project.name":    project_name,
+            "service.name": project_name,
+            "project.name": project_name,
             "agent.session_id": session_id,
         }
         tenant_id = _tenant_id()
@@ -64,31 +67,44 @@ def _setup_otel(project_name: str, session_id: str) -> Any:
 
 
 class _NoopSpan:
-    def __enter__(self): return self
-    def __exit__(self, *_): pass
-    def set_attribute(self, *_): pass
-    def set_status(self, *_): pass
-    def record_exception(self, *_): pass
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
+    def set_attribute(self, *_):
+        pass
+
+    def set_status(self, *_):
+        pass
+
+    def record_exception(self, *_):
+        pass
 
 
 class _NoopTracer:
-    def start_as_current_span(self, *_, **__): return _NoopSpan()
+    def start_as_current_span(self, *_, **__):
+        return _NoopSpan()
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class PipelineState:
-    task:        str
-    spec:        str = ""
-    plan:        str = ""
-    code:        str = ""
-    validation:  str = ""
-    status:      Literal["pending", "running", "success", "needs_revision", "failed"] = "pending"
+    task: str
+    spec: str = ""
+    plan: str = ""
+    code: str = ""
+    validation: str = ""
+    status: Literal["pending", "running", "success", "needs_revision", "failed"] = (
+        "pending"
+    )
     revision_count: int = 0
-    session_id:  str = field(default_factory=lambda: str(uuid.uuid4()))
-    messages:    list[dict] = field(default_factory=list)
-    metadata:    dict = field(default_factory=dict)
+    session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    messages: list[dict] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
 
 # ── System prompts ────────────────────────────────────────────────────────────
@@ -121,6 +137,7 @@ original spec. You must respond with a JSON object only:
 
 # ── Agent nodes ───────────────────────────────────────────────────────────────
 
+
 def _architect_node(state: PipelineState, tracer: Any, logger: Any) -> PipelineState:
     from cost_router import call as llm_call
 
@@ -131,7 +148,9 @@ def _architect_node(state: PipelineState, tracer: Any, logger: Any) -> PipelineS
     with tracer.start_as_current_span("architect") as span:
         span.set_attribute("agent.name", "Architect")
         span.set_attribute("agent.role", "orchestrator")
-        span.set_attribute("agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown"))
+        span.set_attribute(
+            "agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown")
+        )
         span.set_attribute("input.value", prompt[:1000])
         try:
             plan = llm_call(prompt, system=_ARCHITECT_SYSTEM, task_type="architect")
@@ -155,7 +174,9 @@ def _developer_node(state: PipelineState, tracer: Any, logger: Any) -> PipelineS
     with tracer.start_as_current_span("developer") as span:
         span.set_attribute("agent.name", "Developer")
         span.set_attribute("agent.role", "subagent")
-        span.set_attribute("agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown"))
+        span.set_attribute(
+            "agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown")
+        )
         span.set_attribute("input.value", prompt[:1000])
         try:
             code = llm_call(prompt, system=_DEVELOPER_SYSTEM, task_type="code")
@@ -172,23 +193,26 @@ def _developer_node(state: PipelineState, tracer: Any, logger: Any) -> PipelineS
 def _validator_node(state: PipelineState, tracer: Any, logger: Any) -> PipelineState:
     from cost_router import call as llm_call
 
-    prompt = (
-        f"SPEC:\n{state.spec}\n\n"
-        f"BLUEPRINT:\n{state.plan}\n\n"
-        f"CODE:\n{state.code}"
-    )
+    prompt = f"SPEC:\n{state.spec}\n\nBLUEPRINT:\n{state.plan}\n\nCODE:\n{state.code}"
 
     with tracer.start_as_current_span("validator") as span:
         span.set_attribute("agent.name", "Validator")
         span.set_attribute("agent.role", "subagent")
-        span.set_attribute("agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown"))
+        span.set_attribute(
+            "agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown")
+        )
         span.set_attribute("input.value", prompt[:1000])
         try:
             raw = llm_call(prompt, system=_VALIDATOR_SYSTEM, task_type="review")
             # Extract JSON from response (model may wrap in markdown)
             import re
-            m = re.search(r'\{.*\}', raw, re.DOTALL)
-            verdict_json = json.loads(m.group(0)) if m else {"verdict": "FAIL", "issues": [raw], "revision_hint": raw}
+
+            m = re.search(r"\{.*\}", raw, re.DOTALL)
+            verdict_json = (
+                json.loads(m.group(0))
+                if m
+                else {"verdict": "FAIL", "issues": [raw], "revision_hint": raw}
+            )
 
             state.validation = json.dumps(verdict_json, indent=2)
             span.set_attribute("output.value", state.validation)
@@ -254,7 +278,9 @@ def run_pipeline(
     with tracer.start_as_current_span("pipeline") as root_span:
         root_span.set_attribute("project.name", pname)
         root_span.set_attribute("agent.session_id", session_id)
-        root_span.set_attribute("agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown"))
+        root_span.set_attribute(
+            "agent.owner_id", os.environ.get("AGENT_OWNER_ID", "unknown")
+        )
         if logger.tenant_id:
             root_span.set_attribute("tenant.id", logger.tenant_id)
 
@@ -278,7 +304,10 @@ def run_pipeline(
 
             state = _validator_node(state, tracer, logger)
 
-            if state.status == "needs_revision" and state.revision_count > MAX_REVISIONS:
+            if (
+                state.status == "needs_revision"
+                and state.revision_count > MAX_REVISIONS
+            ):
                 logger.major(
                     "max_revisions_exceeded",
                     revisions=state.revision_count,
@@ -294,11 +323,11 @@ def run_pipeline(
     )
 
     return {
-        "status":     state.status,
+        "status": state.status,
         "session_id": state.session_id,
-        "revisions":  state.revision_count,
-        "plan":       state.plan,
-        "code":       state.code,
+        "revisions": state.revision_count,
+        "plan": state.plan,
+        "code": state.code,
         "validation": state.validation,
     }
 
@@ -309,9 +338,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run local agent pipeline")
-    parser.add_argument("task",          help="Task description")
-    parser.add_argument("--spec",        help="Path to .agent-rfc/ spec file")
-    parser.add_argument("--project",     help="Project name override")
+    parser.add_argument("task", help="Task description")
+    parser.add_argument("--spec", help="Path to .agent-rfc/ spec file")
+    parser.add_argument("--project", help="Project name override")
     args = parser.parse_args()
 
     result = run_pipeline(

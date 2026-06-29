@@ -25,7 +25,7 @@ import sys
 from typing import Any, Optional
 
 PHOENIX_ENDPOINT = os.environ.get("AGENT_PHOENIX_ENDPOINT", "http://localhost:6006")
-SYNC_STATE_FILE  = ".agent-rfc/fixtures/sync_state.json"
+SYNC_STATE_FILE = ".agent-rfc/fixtures/sync_state.json"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,6 +53,7 @@ def _save_sync_state(state: dict) -> None:
 
 
 # ── Phoenix API client ────────────────────────────────────────────────────────
+
 
 def _phoenix_get(path: str, params: Optional[dict] = None) -> Any:
     """Make a GET request to Phoenix REST API."""
@@ -83,6 +84,7 @@ def _fetch_span(span_id: str) -> Optional[dict]:
 
 # ── Main sync ─────────────────────────────────────────────────────────────────
 
+
 def sync() -> dict:
     """
     Pull Phoenix annotations and promote unsynced negative feedback.
@@ -92,9 +94,9 @@ def sync() -> dict:
     """
     print(f"🔄 Syncing Phoenix feedback from {PHOENIX_ENDPOINT}...")
 
-    state       = _load_sync_state()
+    state = _load_sync_state()
     already_synced = set(state.get("synced_span_ids", []))
-    stats       = {"synced": 0, "skipped": 0, "errors": 0}
+    stats = {"synced": 0, "skipped": 0, "errors": 0}
 
     # Check Phoenix availability
     try:
@@ -107,10 +109,10 @@ def sync() -> dict:
     print(f"   Found {len(annotations)} annotation(s)")
 
     for annotation in annotations:
-        span_id   = annotation.get("span_id") or annotation.get("spanId", "")
-        label     = (annotation.get("label") or annotation.get("name", "")).lower()
-        score     = annotation.get("score")
-        note      = annotation.get("explanation") or annotation.get("note", "")
+        span_id = annotation.get("span_id") or annotation.get("spanId", "")
+        label = (annotation.get("label") or annotation.get("name", "")).lower()
+        score = annotation.get("score")
+        note = annotation.get("explanation") or annotation.get("note", "")
 
         # Only process negative feedback: thumbs_down, incorrect, correction, fail
         is_negative = (
@@ -136,10 +138,11 @@ def sync() -> dict:
 
         # Extract input and output from span attributes
         span_attrs = span.get("attributes", {}) or {}
-        input_val  = (
+        input_val = (
             span_attrs.get("input.value")
             or span_attrs.get("llm.input_messages", [{}])[0].get("message.content", "")
-            if isinstance(span_attrs.get("llm.input_messages"), list) else ""
+            if isinstance(span_attrs.get("llm.input_messages"), list)
+            else ""
         ) or span.get("name", "unknown_input")
 
         if not input_val:
@@ -151,12 +154,15 @@ def sync() -> dict:
 
         try:
             from promote_learning import promote
+
             promote(
                 case_id=case_id,
                 input_query=str(input_val)[:500],
-                correct_output=note or f"[Human annotation: {label}] Correct output needed.",
+                correct_output=note
+                or f"[Human annotation: {label}] Correct output needed.",
                 expected_tool=span_attrs.get("tool.name", "any"),
-                resolution_note=note or f"Phoenix annotation: {label} on span {span_id}",
+                resolution_note=note
+                or f"Phoenix annotation: {label} on span {span_id}",
                 resolved_by=os.environ.get("AGENT_OWNER_ID", "phoenix-sync"),
                 rerun_evals=False,  # Caller decides when to re-run
             )
@@ -169,11 +175,13 @@ def sync() -> dict:
 
     # Persist updated sync state
     state["synced_span_ids"] = list(already_synced)
-    state["last_sync"]       = _iso_now()
+    state["last_sync"] = _iso_now()
     _save_sync_state(state)
 
-    print(f"\n   Sync complete — promoted: {stats['synced']}, "
-          f"skipped: {stats['skipped']}, errors: {stats['errors']}")
+    print(
+        f"\n   Sync complete — promoted: {stats['synced']}, "
+        f"skipped: {stats['skipped']}, errors: {stats['errors']}"
+    )
     return stats
 
 

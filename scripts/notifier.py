@@ -18,19 +18,21 @@ from typing import Literal, Optional
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-APP_NAME      = "AgentSmith"
-ICON_PATH     = os.environ.get("AGENT_NOTIFY_ICON", "")
-WEBHOOK_URL   = os.environ.get("AGENT_NOTIFY_WEBHOOK", "")   # Slack / Teams / custom
-NOTIFY_SOUND  = os.environ.get("AGENT_NOTIFY_SOUND", "Ping")  # macOS sound name
+APP_NAME = "AgentSmith"
+ICON_PATH = os.environ.get("AGENT_NOTIFY_ICON", "")
+WEBHOOK_URL = os.environ.get("AGENT_NOTIFY_WEBHOOK", "")  # Slack / Teams / custom
+NOTIFY_SOUND = os.environ.get("AGENT_NOTIFY_SOUND", "Ping")  # macOS sound name
 
 Urgency = Literal["low", "normal", "critical"]
 
 
 # ── Primary: plyer ─────────────────────────────────────────────────────────────
 
+
 def _notify_plyer(title: str, message: str, timeout: int = 8) -> bool:
     try:
         from plyer import notification as plyer_notif
+
         kwargs: dict = {
             "title": title,
             "message": message,
@@ -47,10 +49,12 @@ def _notify_plyer(title: str, message: str, timeout: int = 8) -> bool:
 
 # ── Enhancement: osascript on macOS ───────────────────────────────────────────
 
+
 def _notify_osascript(title: str, message: str) -> bool:
     """Display a macOS system notification with sound via osascript."""
     try:
         import platform
+
         if platform.system() != "Darwin":
             return False
         script = (
@@ -70,6 +74,7 @@ def _notify_osascript(title: str, message: str) -> bool:
 
 # ── Webhook: Slack / Teams / custom ───────────────────────────────────────────
 
+
 def _send_webhook(title: str, message: str) -> None:
     """POST to AGENT_NOTIFY_WEBHOOK in a daemon thread (fire-and-forget)."""
     if not WEBHOOK_URL:
@@ -79,9 +84,10 @@ def _send_webhook(title: str, message: str) -> None:
         try:
             import json
             import urllib.request
-            payload = json.dumps({
-                "text": f"*{APP_NAME}* — *{title}*\n{message}"
-            }).encode()
+
+            payload = json.dumps(
+                {"text": f"*{APP_NAME}* — *{title}*\n{message}"}
+            ).encode()
             req = urllib.request.Request(
                 WEBHOOK_URL,
                 data=payload,
@@ -95,6 +101,7 @@ def _send_webhook(title: str, message: str) -> None:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def send_notification(
     title: str,
@@ -154,7 +161,9 @@ def notify_circuit_breaker(tier: str, detail: str) -> None:
     )
 
 
-def notify_eval_result(score: float, threshold: float, project: Optional[str] = None) -> None:
+def notify_eval_result(
+    score: float, threshold: float, project: Optional[str] = None
+) -> None:
     """Convenience wrapper for post-eval summary."""
     emoji = "✅" if score >= threshold else "❌"
     project_tag = f" [{project}]" if project else ""
@@ -169,8 +178,10 @@ def notify_eval_result(score: float, threshold: float, project: Optional[str] = 
 
 if __name__ == "__main__":
     import sys
+
     msg = " ".join(sys.argv[1:]) or "AgentSmith notification test"
     send_notification("Test Notification", msg, urgency="normal")
     import time
-    time.sleep(1)   # let the daemon thread fire
+
+    time.sleep(1)  # let the daemon thread fire
     print("✅ Notification dispatched")

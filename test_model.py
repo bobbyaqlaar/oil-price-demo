@@ -1,8 +1,10 @@
 """Quick model ID test — run from oil-price-demo/ with .env sourced."""
+
 import asyncio
 import os
 import sys
 import httpx
+
 
 async def test(model_id: str, api_key: str) -> None:
     body = {
@@ -16,9 +18,12 @@ async def test(model_id: str, api_key: str) -> None:
         "content-type": "application/json",
     }
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers)
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages", json=body, headers=headers
+        )
         print(f"[{model_id}] {resp.status_code}")
         print(resp.text[:500])
+
 
 async def main() -> None:
     key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -28,5 +33,6 @@ async def main() -> None:
     await test("claude-haiku-4-5-20251001", key)
     print()
     await test("claude-sonnet-4-6", key)
+
 
 asyncio.run(main())

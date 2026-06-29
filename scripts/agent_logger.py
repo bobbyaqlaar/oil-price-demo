@@ -36,9 +36,12 @@ def _project_name() -> str:
     remote = ""
     try:
         import subprocess
+
         remote = subprocess.check_output(
             ["git", "remote", "get-url", "origin"],
-            capture_output=True, text=True, cwd=root
+            capture_output=True,
+            text=True,
+            cwd=root,
         ).stdout.strip()
         if remote:
             return remote.rstrip("/").split("/")[-1].removesuffix(".git")
@@ -48,6 +51,7 @@ def _project_name() -> str:
 
 
 # ── Core logger ───────────────────────────────────────────────────────────────
+
 
 class AgentLogger:
     """
@@ -113,6 +117,7 @@ class AgentLogger:
         # Circuit breaker — import lazily to avoid circular deps
         try:
             from circuit_breaker import audit_token_velocity_circuit
+
             audit_token_velocity_circuit(input_tokens, output_tokens)
         except Exception:  # fail-open: circuit breaker is a side-effect check; it must never prevent the log entry above from being written
             pass
@@ -152,7 +157,9 @@ class AgentLogger:
         try:
             with self._log_path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
-        except OSError:  # fail-open: read-only filesystem (CI without checkout) — stdout only
+        except (
+            OSError
+        ):  # fail-open: read-only filesystem (CI without checkout) — stdout only
             pass
 
         return entry

@@ -68,9 +68,12 @@ def _load_tenant_yaml() -> dict:
         return {}
     try:
         import yaml  # type: ignore
+
         return yaml.safe_load(tenant_yaml.read_text()) or {}
     except Exception as exc:
-        print(f"⚠️  Failed to parse .agenticframework/tenant.yaml ({exc}) — budget cap / replay webhook sync skipped this run.")
+        print(
+            f"⚠️  Failed to parse .agenticframework/tenant.yaml ({exc}) — budget cap / replay webhook sync skipped this run."
+        )
         return {}
 
 
@@ -98,6 +101,7 @@ def _replay_webhook_config(tenant_yaml_data: dict) -> Optional[dict]:
     this tenant's worker, never a shared cross-tenant endpoint."""
     try:
         from urllib.parse import urlparse
+
         hitl = tenant_yaml_data.get("hitl") or {}
         url, secret = hitl.get("replay_webhook_url"), hitl.get("replay_webhook_secret")
         if not url and not secret:
@@ -110,11 +114,15 @@ def _replay_webhook_config(tenant_yaml_data: dict) -> Optional[dict]:
             )
             return None
         if urlparse(url).scheme not in ("http", "https"):
-            print(f"⚠️  hitl.replay_webhook_url={url!r} is not a valid http(s) URL — skipping sync.")
+            print(
+                f"⚠️  hitl.replay_webhook_url={url!r} is not a valid http(s) URL — skipping sync."
+            )
             return None
         return {"replayWebhookUrl": url, "replayWebhookSecret": secret}
     except Exception as exc:
-        print(f"⚠️  Failed to parse tenant.yaml's hitl section ({exc}) — replay webhook sync skipped this run.")
+        print(
+            f"⚠️  Failed to parse tenant.yaml's hitl section ({exc}) — replay webhook sync skipped this run."
+        )
         return None
 
 
@@ -124,7 +132,11 @@ def _entry_id(entry: dict) -> str:
     twice upserts (per the portal's ON CONFLICT (tenant_id, entry_id))
     instead of creating a duplicate row."""
     basis = json.dumps(
-        {"timestamp": entry.get("timestamp"), "level": entry.get("level"), "event": entry.get("event")},
+        {
+            "timestamp": entry.get("timestamp"),
+            "level": entry.get("level"),
+            "event": entry.get("event"),
+        },
         sort_keys=True,
     )
     return hashlib.sha256(basis.encode("utf-8")).hexdigest()[:24]
@@ -134,12 +146,16 @@ def sync() -> dict:
     stats = {"synced": 0, "skipped": 0, "errors": 0}
 
     if not OPS_PORTAL_URL or not OPS_PORTAL_SYNC_TOKEN:
-        print("ℹ️  OPS_PORTAL_URL/OPS_PORTAL_SYNC_TOKEN not set — skipping portal history sync.")
+        print(
+            "ℹ️  OPS_PORTAL_URL/OPS_PORTAL_SYNC_TOKEN not set — skipping portal history sync."
+        )
         return stats
 
     tenant_id = _tenant_id()
     if not tenant_id:
-        print("ℹ️  No .agenticframework/tenant.yaml — skipping portal history sync (not a tenant repo).")
+        print(
+            "ℹ️  No .agenticframework/tenant.yaml — skipping portal history sync (not a tenant repo)."
+        )
         return stats
 
     log_path = _repo_root() / HISTORY_LOG_FILE
@@ -166,25 +182,30 @@ def sync() -> dict:
             stats["skipped"] += 1
             continue
 
-        to_send.append({
-            "entryId": entry_id,
-            "level": entry.get("level", "INFO"),
-            "event": entry.get("event", ""),
-            "timestamp": entry.get("timestamp", ""),
-            "hitlResolved": entry.get("hitl_resolved", True),
-            "raw": entry,
-        })
+        to_send.append(
+            {
+                "entryId": entry_id,
+                "level": entry.get("level", "INFO"),
+                "event": entry.get("event", ""),
+                "timestamp": entry.get("timestamp", ""),
+                "hitlResolved": entry.get("hitl_resolved", True),
+                "raw": entry,
+            }
+        )
 
     tenant_yaml_data = _load_tenant_yaml()
     budget_cap_usd = _budget_cap_usd(tenant_yaml_data)
     replay_webhook = _replay_webhook_config(tenant_yaml_data)
 
     if not to_send and budget_cap_usd is None and replay_webhook is None:
-        print(f"✅ Nothing new to sync (skipped {stats['skipped']} already-synced entries).")
+        print(
+            f"✅ Nothing new to sync (skipped {stats['skipped']} already-synced entries)."
+        )
         return stats
 
     try:
         import httpx
+
         payload: dict[str, Any] = {"tenantId": tenant_id, "entries": to_send}
         if budget_cap_usd is not None:
             payload["budgetCapUsd"] = budget_cap_usd
@@ -201,7 +222,9 @@ def sync() -> dict:
         for e in to_send:
             already_synced.add(e["entryId"])
         stats["synced"] = written
-        print(f"✅ Synced {written} entr{'y' if written == 1 else 'ies'} to {OPS_PORTAL_URL}")
+        print(
+            f"✅ Synced {written} entr{'y' if written == 1 else 'ies'} to {OPS_PORTAL_URL}"
+        )
     except Exception as exc:
         print(f"⚠️  Portal history sync failed (non-fatal): {exc}")
         stats["errors"] += 1

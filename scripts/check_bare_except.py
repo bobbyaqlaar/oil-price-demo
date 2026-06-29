@@ -42,7 +42,11 @@ def _is_noop_body(body: list[ast.stmt]) -> bool:
     stmt = body[0]
     if isinstance(stmt, ast.Pass):
         return True
-    if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and stmt.value.value is Ellipsis:
+    if (
+        isinstance(stmt, ast.Expr)
+        and isinstance(stmt.value, ast.Constant)
+        and stmt.value.value is Ellipsis
+    ):
         return True
     return False
 
@@ -60,8 +64,14 @@ def find_violations(source: str, path: str) -> list[tuple[str, int]]:
             continue
         if not _is_noop_body(node.body):
             continue
-        header_line = lines[node.lineno - 1] if 0 < node.lineno <= len(lines) else ""
-        if "fail-open:" in header_line:
+        # The except header can span multiple lines (a long exception-type
+        # tuple, or a formatter wrapping a trailing comment onto its own
+        # line) — node.lineno is only where `except` itself starts, so
+        # search the whole header span (up to the body's first line) for
+        # the suppression marker, not just that one line.
+        body_start = node.body[0].lineno if node.body else node.lineno + 1
+        header_lines = lines[node.lineno - 1 : max(node.lineno, body_start - 1)]
+        if any("fail-open:" in line for line in header_lines):
             continue
         violations.append((path, node.lineno))
     return violations
@@ -76,8 +86,10 @@ def main(argv: list[str]) -> int:
         except OSError:
             continue
         for file_path, lineno in find_violations(source, path):
-            print(f"{file_path}:{lineno}: empty except handler (pass/... only) — log or re-raise, "
-                  f"or append '# fail-open: <reason>' to the except line if this is an intentional fail-open")
+            print(
+                f"{file_path}:{lineno}: empty except handler (pass/... only) — log or re-raise, "
+                f"or append '# fail-open: <reason>' to the except line if this is an intentional fail-open"
+            )
             failed = True
     return 1 if failed else 0
 

@@ -26,8 +26,18 @@ from _shared import _repo_root  # noqa: E402
 
 
 IGNORED_DIRS = {
-    ".git", ".venv", "venv", "node_modules", "__pycache__", ".mypy_cache",
-    ".pytest_cache", "dist", "build", ".agent-rfc", ".agents", ".github",
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    "dist",
+    "build",
+    ".agent-rfc",
+    ".agents",
+    ".github",
 }
 
 EXTENSION_TO_LANG = {
@@ -49,6 +59,7 @@ def _iter_source_files(root: Path):
 
 
 # ── Language-specific parsers ─────────────────────────────────────────────────
+
 
 def _parse_python(path: Path) -> tuple[list[str], list[str]]:
     """Return (symbols, imported_modules)."""
@@ -87,17 +98,18 @@ def _parse_typescript(path: Path) -> tuple[list[str], list[str]]:
         source = path.read_text(encoding="utf-8", errors="replace")
         # Exported declarations
         for m in re.finditer(
-            r'^export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+(\w+)',
-            source, re.MULTILINE
+            r"^export\s+(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|interface|type|enum)\s+(\w+)",
+            source,
+            re.MULTILINE,
         ):
             symbols.append(m.group(1))
         # Import paths (local only — starts with . or /)
-        for m in re.finditer(r'''from\s+['"]([^'"]+)['"]''', source):
+        for m in re.finditer(r"""from\s+['"]([^'"]+)['"]""", source):
             imp = m.group(1)
             if imp.startswith("."):
                 imports.append(imp)
         # Side-effect imports
-        for m in re.finditer(r'''import\s+['"]([^'"]+)['"]''', source):
+        for m in re.finditer(r"""import\s+['"]([^'"]+)['"]""", source):
             imp = m.group(1)
             if imp.startswith("."):
                 imports.append(imp)
@@ -112,9 +124,11 @@ def _parse_go(path: Path) -> tuple[list[str], list[str]]:
     try:
         source = path.read_text(encoding="utf-8", errors="replace")
         # Exported identifiers (start with uppercase)
-        for m in re.finditer(r'^func\s+(\([^)]*\)\s+)?([A-Z]\w*)\s*\(', source, re.MULTILINE):
+        for m in re.finditer(
+            r"^func\s+(\([^)]*\)\s+)?([A-Z]\w*)\s*\(", source, re.MULTILINE
+        ):
             symbols.append(m.group(2))
-        for m in re.finditer(r'^type\s+([A-Z]\w*)\s+', source, re.MULTILINE):
+        for m in re.finditer(r"^type\s+([A-Z]\w*)\s+", source, re.MULTILINE):
             symbols.append(m.group(1))
         # Import paths
         for m in re.finditer(r'"([^"]+)"', source):
@@ -127,16 +141,16 @@ def _parse_go(path: Path) -> tuple[list[str], list[str]]:
 
 
 _PARSERS = {
-    "python":     _parse_python,
+    "python": _parse_python,
     "typescript": _parse_typescript,
     "javascript": _parse_typescript,  # same parser works
-    "go":         _parse_go,
+    "go": _parse_go,
 }
 
 
 # ── Guardrail extraction from .cursorrules ────────────────────────────────────
 
-_PILLAR_RE = re.compile(r'^##\s+(\d+)\.\s+(.+)$', re.MULTILINE)
+_PILLAR_RE = re.compile(r"^##\s+(\d+)\.\s+(.+)$", re.MULTILINE)
 
 
 def _extract_guardrails_from_cursorrules(path: Path) -> list[dict]:
@@ -146,12 +160,14 @@ def _extract_guardrails_from_cursorrules(path: Path) -> list[dict]:
         for m in _PILLAR_RE.finditer(text):
             pillar_num = int(m.group(1))
             title = m.group(2).strip()
-            guardrails.append({
-                "rule_id": f"cursorrules:pillar:{pillar_num}",
-                "title": title,
-                "pillar": pillar_num,
-                "source_file": str(path),
-            })
+            guardrails.append(
+                {
+                    "rule_id": f"cursorrules:pillar:{pillar_num}",
+                    "title": title,
+                    "pillar": pillar_num,
+                    "source_file": str(path),
+                }
+            )
     except Exception:  # fail-open: one unparsable .cursorrules file must not abort the whole codebase scan; it just contributes no guardrails
         pass
     return guardrails
@@ -163,20 +179,23 @@ def _extract_guardrails_from_rfc(rfc_dir: Path) -> list[dict]:
         try:
             text = md_file.read_text(encoding="utf-8", errors="replace")
             # Extract first H1 or H2 as the rule title
-            m = re.search(r'^#{1,2}\s+(.+)$', text, re.MULTILINE)
+            m = re.search(r"^#{1,2}\s+(.+)$", text, re.MULTILINE)
             title = m.group(1).strip() if m else md_file.stem
-            guardrails.append({
-                "rule_id": f"rfc:{md_file.relative_to(rfc_dir)}",
-                "title": title,
-                "pillar": None,
-                "source_file": str(md_file),
-            })
+            guardrails.append(
+                {
+                    "rule_id": f"rfc:{md_file.relative_to(rfc_dir)}",
+                    "title": title,
+                    "pillar": None,
+                    "source_file": str(md_file),
+                }
+            )
         except Exception:  # fail-open: one unparsable RFC file must not abort scanning the rest of the directory
             pass
     return guardrails
 
 
 # ── Resolve local import to file path ─────────────────────────────────────────
+
 
 def _resolve_local_import(
     source_file: Path,
@@ -201,14 +220,27 @@ def _resolve_local_import(
     else:
         # TS/JS: relative path
         base = (source_file.parent / import_path).resolve()
-        for ext in (".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx", "/index.js"):
-            candidate = Path(str(base) + ext) if not ext.startswith("/") else Path(str(base) + ext)
+        for ext in (
+            ".ts",
+            ".tsx",
+            ".js",
+            ".jsx",
+            "/index.ts",
+            "/index.tsx",
+            "/index.js",
+        ):
+            candidate = (
+                Path(str(base) + ext)
+                if not ext.startswith("/")
+                else Path(str(base) + ext)
+            )
             if candidate.exists():
                 return str(candidate.relative_to(root))
     return None
 
 
 # ── Main walker ───────────────────────────────────────────────────────────────
+
 
 def run_map(verbose: bool = False) -> dict:
     try:
@@ -234,9 +266,14 @@ def run_map(verbose: bool = False) -> dict:
         last_modified = abs_path.stat().st_mtime
 
         from datetime import datetime, timezone
-        mtime_str = datetime.fromtimestamp(last_modified, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        kg.upsert_file(rel_path, language=lang, symbols=symbols, last_modified=mtime_str)
+        mtime_str = datetime.fromtimestamp(last_modified, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+        kg.upsert_file(
+            rel_path, language=lang, symbols=symbols, last_modified=mtime_str
+        )
         stats["upserted"] += 1
 
         # Resolve and wire import edges
@@ -247,7 +284,9 @@ def run_map(verbose: bool = False) -> dict:
                 stats["edges"] += 1
 
         if verbose:
-            print(f"  [{lang}] {rel_path} — {len(symbols)} symbols, {len(raw_imports)} imports")
+            print(
+                f"  [{lang}] {rel_path} — {len(symbols)} symbols, {len(raw_imports)} imports"
+            )
 
     # ── Purge stale CodebaseFile nodes ────────────────────────────────────────
     stale = [
@@ -289,7 +328,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Map codebase into Knowledge Graph")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress the summary line (CI usage)")
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress the summary line (CI usage)",
+    )
     args = parser.parse_args()
 
     stats = run_map(verbose=args.verbose)

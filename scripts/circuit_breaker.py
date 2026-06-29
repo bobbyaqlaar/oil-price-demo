@@ -23,13 +23,13 @@ from pathlib import Path
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BURST_WINDOW_SECONDS = 300          # 5 minutes
-BURST_TOKEN_LIMIT   = int(os.environ.get("AGENT_BURST_TOKEN_LIMIT",  "50000"))
-MONTHLY_USD_CAP     = float(os.environ.get("AGENT_MONTHLY_USD_CAP",  "150.0"))
+BURST_WINDOW_SECONDS = 300  # 5 minutes
+BURST_TOKEN_LIMIT = int(os.environ.get("AGENT_BURST_TOKEN_LIMIT", "50000"))
+MONTHLY_USD_CAP = float(os.environ.get("AGENT_MONTHLY_USD_CAP", "150.0"))
 
 # Approximate blended cost per token in USD (conservative estimate).
 # Override via env for more accurate per-model pricing.
-COST_PER_INPUT_TOKEN  = float(os.environ.get("AGENT_COST_PER_INPUT_TOKEN",  "0.000003"))
+COST_PER_INPUT_TOKEN = float(os.environ.get("AGENT_COST_PER_INPUT_TOKEN", "0.000003"))
 COST_PER_OUTPUT_TOKEN = float(os.environ.get("AGENT_COST_PER_OUTPUT_TOKEN", "0.000015"))
 
 # ── State file ────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ _EMPTY_STATE: dict = {
     "config": {},
     "monthly_accumulated_spend_usd": 0.0,
     "current_month_identifier": "",
-    "events": [],          # list of {ts: float, input_tokens: int, output_tokens: int}
+    "events": [],  # list of {ts: float, input_tokens: int, output_tokens: int}
 }
 
 
@@ -77,6 +77,7 @@ def _save_state(state: dict) -> None:
 
 
 # ── Core audit function ───────────────────────────────────────────────────────
+
 
 class CircuitBreakerTripped(RuntimeError):
     """Raised when either circuit breaker tier triggers."""
@@ -133,8 +134,7 @@ def audit_token_velocity_circuit(
 
     # ── Tier 2: monthly spend ─────────────────────────────────────────────────
     this_cost = (
-        input_tokens  * COST_PER_INPUT_TOKEN +
-        output_tokens * COST_PER_OUTPUT_TOKEN
+        input_tokens * COST_PER_INPUT_TOKEN + output_tokens * COST_PER_OUTPUT_TOKEN
     )
     state["monthly_accumulated_spend_usd"] = (
         state.get("monthly_accumulated_spend_usd", 0.0) + this_cost
@@ -157,9 +157,7 @@ def audit_token_velocity_circuit(
     # ── Warn at 80 % monthly ──────────────────────────────────────────────────
     if monthly_total > MONTHLY_USD_CAP * 0.8:
         pct = (monthly_total / MONTHLY_USD_CAP) * 100
-        warn_msg = (
-            f"Monthly spend at {pct:.0f}%: ${monthly_total:.4f} / ${MONTHLY_USD_CAP:.2f}"
-        )
+        warn_msg = f"Monthly spend at {pct:.0f}%: ${monthly_total:.4f} / ${MONTHLY_USD_CAP:.2f}"
         _notify_if_requested(notify, "WARN", warn_msg)
 
 
@@ -168,13 +166,17 @@ def _notify_if_requested(notify: bool, tier: str, msg: str) -> None:
         return
     try:
         from notifier import send_notification
+
         title = "🚨 Circuit Breaker" if tier != "WARN" else "⚠️ Budget Warning"
-        send_notification(title, msg, urgency="critical" if tier != "WARN" else "normal")
+        send_notification(
+            title, msg, urgency="critical" if tier != "WARN" else "normal"
+        )
     except Exception:
         print(f"[circuit_breaker] {tier}: {msg}", file=sys.stderr)
 
 
 # ── Status query ──────────────────────────────────────────────────────────────
+
 
 def get_status() -> dict:
     """Return current circuit breaker state as a plain dict."""
@@ -210,10 +212,16 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Circuit breaker status and controls")
-    parser.add_argument("--status",      action="store_true", help="Print current status")
-    parser.add_argument("--reset",       action="store_true", help="Reset monthly accumulator")
-    parser.add_argument("--simulate",    nargs=2, metavar=("INPUT", "OUTPUT"),
-                        help="Simulate a call: --simulate 1000 500")
+    parser.add_argument("--status", action="store_true", help="Print current status")
+    parser.add_argument(
+        "--reset", action="store_true", help="Reset monthly accumulator"
+    )
+    parser.add_argument(
+        "--simulate",
+        nargs=2,
+        metavar=("INPUT", "OUTPUT"),
+        help="Simulate a call: --simulate 1000 500",
+    )
     args = parser.parse_args()
 
     if args.status:
