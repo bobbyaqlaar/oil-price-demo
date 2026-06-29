@@ -28,8 +28,9 @@ WORKFLOW_ID      = "oil-price-demo-run-1"
 async def main() -> None:
     approve = "--reject" not in sys.argv
 
-    print(f"Connecting to Temporal at {TEMPORAL_ADDRESS} …")
-    client = await Client.connect(TEMPORAL_ADDRESS)
+    use_tls = os.environ.get("TEMPORAL_TLS", "false").lower() == "true"
+    print(f"Connecting to Temporal at {TEMPORAL_ADDRESS} (tls={use_tls}) …")
+    client = await Client.connect(TEMPORAL_ADDRESS, tls=use_tls)
 
     handle = client.get_workflow_handle(WORKFLOW_ID)
     await handle.signal("hitl_approved", approve)

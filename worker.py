@@ -83,10 +83,14 @@ async def _run_worker_with_retry(tenant_id: str) -> None:
     from temporalio.worker import Worker
 
     address = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+    # TEMPORAL_TLS=true for cloud-hosted Temporal behind a TLS-terminating
+    # ingress (e.g. Cloud Run, which only exposes 443 — there is no
+    # plaintext gRPC port reachable from outside the container).
+    use_tls = os.environ.get("TEMPORAL_TLS", "false").lower() == "true"
     delay = 2.0
     while True:
         try:
-            client = await Client.connect(address)
+            client = await Client.connect(address, tls=use_tls)
             break
         except Exception as exc:
             print(f"[worker] Temporal connect failed ({exc}); retrying in {delay:.0f}s", file=sys.stderr)

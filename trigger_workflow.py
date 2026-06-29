@@ -62,8 +62,9 @@ async def main() -> None:
         idx = sys.argv.index("--price-series")
         price_series = [float(x) for x in sys.argv[idx + 1:]]
 
-    print(f"Connecting to Temporal at {TEMPORAL_ADDRESS} …")
-    client = await Client.connect(TEMPORAL_ADDRESS)
+    use_tls = os.environ.get("TEMPORAL_TLS", "false").lower() == "true"
+    print(f"Connecting to Temporal at {TEMPORAL_ADDRESS} (tls={use_tls}) …")
+    client = await Client.connect(TEMPORAL_ADDRESS, tls=use_tls)
 
     print(f"Starting workflow {WORKFLOW_ID} on queue {TASK_QUEUE} …")
     print(f"Price series: {price_series}")
