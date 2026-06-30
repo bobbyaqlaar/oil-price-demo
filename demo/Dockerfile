@@ -31,6 +31,8 @@ EXPOSE 8080
 # --server.headless=true    suppress browser-open + CORS warnings
 # --server.enableCORS=false not needed for Cloud Run (no cross-origin iframe)
 # --server.address=0.0.0.0  listen on all interfaces, not just localhost
+# Use shell form so $PORT is expanded; JSON form would require ["sh","-c","..."].
+# hadolint ignore=DL3025
 CMD streamlit run app.py \
     --server.port=$PORT \
     --server.address=0.0.0.0 \
