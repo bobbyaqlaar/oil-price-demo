@@ -95,13 +95,18 @@ def _judge_case(
 
             result = run_pipeline(task=case["input"])
             project_response = result.get("code", "") or result.get("validation", "")
+            # run_pipeline catches LLM exceptions internally and returns
+            # status="failed" with empty code/validation instead of raising.
+            # Treat that as a pipeline error so all-failed → exit 2.
+            if result.get("status") == "failed":
+                project_response = f"PIPELINE_ERROR: pipeline returned status=failed (check agent logs)"
         except Exception as exc:
             project_response = f"PIPELINE_ERROR: {exc}"
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    pipeline_error = (
-        project_response.startswith("PIPELINE_ERROR:") if project_response else False
+    pipeline_error = bool(
+        project_response and project_response.startswith("PIPELINE_ERROR:")
     )
     scored = _shared_judge_case(case, criteria, judge_model, project_response)
 
