@@ -1,0 +1,6 @@
+# demo/requirements.txt — minimal deps for the Streamlit demo app.
+# The demo runs in simulation mode with no API keys needed.
+# Set GROQ_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY to enable live LLM calls.
+streamlit>=1.35.0
+openai>=1.30.0          # used for Groq (openai-compatible) and OpenAI paths
+anthropic>=0.28.0       # used for Anthropic path
