@@ -72,7 +72,6 @@ async def _start_workflow(series: list[float], workflow_id: str) -> str:
 
 async def _get_status(workflow_id: str) -> dict:
     """Return a status dict without blocking on result()."""
-    from temporalio.client import Client
     from temporalio.service import RPCError
 
     client = await _connect()
@@ -93,7 +92,7 @@ async def _send_signal(workflow_id: str, approve: bool) -> None:
 
 async def _get_result(workflow_id: str) -> Optional[dict]:
     """Non-blocking: return result if workflow is complete, else None."""
-    from temporalio.client import Client, WorkflowExecutionStatus
+    from temporalio.client import WorkflowExecutionStatus
 
     client = await _connect()
     handle = client.get_workflow_handle(workflow_id)
