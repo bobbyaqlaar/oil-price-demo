@@ -309,6 +309,17 @@ def _route_for_model(model: str) -> ModelRoute:
             api_key=groq_key,
             tier="forced",
         )
+    # GitHub Models free-tier: qwen/* and openai/gpt-oss-* are available via
+    # GITHUB_TOKEN (always present in Actions) — no paid key needed.
+    # Model ids must be namespaced (e.g. "qwen/qwen3-32b", "openai/gpt-oss-120b").
+    if GITHUB_MODELS_TOKEN and ("qwen" in lower or "gpt-oss" in lower):
+        gh_model = model if "/" in model else f"qwen/{model}"
+        return ModelRoute(
+            model=gh_model,
+            base_url="https://models.github.ai/inference",
+            api_key=GITHUB_MODELS_TOKEN,
+            tier="forced",
+        )
     return _local_route(model=model)
 
 
