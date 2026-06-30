@@ -46,9 +46,14 @@ jobs:
           OPENAI_API_KEY:         ${{ secrets.OPENAI_API_KEY }}
           GROQ_API_KEY:           ${{ secrets.GROQ_API_KEY }}
           GITHUB_TOKEN:           ${{ secrets.GITHUB_TOKEN }}
-          AGENT_MODEL_ARCHITECT:  ${{ secrets.AGENT_MODEL_ARCHITECT }}
-          AGENT_MODEL_COMPLEX:    ${{ secrets.AGENT_MODEL_COMPLEX }}
-          AGENT_JUDGE_MODEL:      ${{ secrets.AGENT_JUDGE_MODEL || 'claude-sonnet-4-6' }}
+          # AGENT_MODEL_ARCHITECT/JUDGE_MODEL: prefer secrets if set; fall
+          # back to GitHub Models (free, GITHUB_TOKEN already available in
+          # every Actions run — no extra key needed). Rotation order when
+          # a model is rate-limited or unavailable: gpt-oss-120b →
+          # gpt-oss-20b → qwen3-32b (set the secret to override).
+          AGENT_MODEL_ARCHITECT:  ${{ secrets.AGENT_MODEL_ARCHITECT || 'openai/gpt-oss-120b' }}
+          AGENT_MODEL_COMPLEX:    ${{ secrets.AGENT_MODEL_COMPLEX || 'openai/gpt-oss-20b' }}
+          AGENT_JUDGE_MODEL:      ${{ secrets.AGENT_JUDGE_MODEL || 'openai/gpt-oss-120b' }}
           AGENT_PHOENIX_ENDPOINT: ${{ secrets.AGENT_PHOENIX_ENDPOINT || '' }}
           AGENT_OWNER_ID:         ${{ secrets.AGENT_OWNER_ID || 'ci@agenticframework' }}
         # exit 2 = <3 golden cases OR all cases failed due to API errors
