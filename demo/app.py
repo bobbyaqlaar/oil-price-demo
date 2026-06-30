@@ -174,7 +174,7 @@ with st.sidebar:
 
     presets = {
         "Stable market":          "80.1, 80.5, 79.8, 80.2, 80.0, 79.9, 80.3",
-        "Price spike (anomaly)":  "80.0, 80.2, 79.8, 80.1, 80.0, 79.9, 120.5",
+        "Price spike (anomaly)":  "70.0, 70.1, 69.9, 70.0, 70.2, 100.0",  # tight cluster → 100 is >3σ
         "Low confidence":         "80.0, 80.1, 79.9, 80.2, 80.0",
         "Custom":                 "80.0, 80.5, 79.8, 80.2, 80.0",
     }
