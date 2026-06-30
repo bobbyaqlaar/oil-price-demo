@@ -216,7 +216,11 @@ def run_scorecard(fail_below: float = 0.80) -> int:
     }
     with _results_path().open("w") as fh:
         json.dump(output, fh, indent=2)
-    print(f"\n  Results saved → {_results_path().relative_to(_repo_root())}")
+    try:
+        results_display = _results_path().relative_to(_repo_root())
+    except ValueError:
+        results_display = _results_path()
+    print(f"\n  Results saved → {results_display}")
 
     # Desktop notification
     try:
