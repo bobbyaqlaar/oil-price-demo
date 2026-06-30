@@ -99,7 +99,9 @@ def _judge_case(
             # status="failed" with empty code/validation instead of raising.
             # Treat that as a pipeline error so all-failed → exit 2.
             if result.get("status") == "failed":
-                project_response = "PIPELINE_ERROR: pipeline returned status=failed (check agent logs)"
+                project_response = (
+                    "PIPELINE_ERROR: pipeline returned status=failed (check agent logs)"
+                )
         except Exception as exc:
             project_response = f"PIPELINE_ERROR: {exc}"
 
