@@ -85,7 +85,7 @@ async def test_stable_prices_no_hitl():
 async def test_price_spike_anomaly_triggers_hitl():
     """Latest price > 3σ → is_anomaly=True, needs_hitl=True."""
     # Tight cluster at 70, then a spike to 100 — well beyond 3σ
-    series = [70.0, 70.1, 69.9, 70.0, 70.2, 100.0]
+    series = [70.0, 70.1, 69.9, 70.0, 70.1, 70.0, 70.2, 69.8, 70.1, 70.0, 110.0]
     with patch("llm_gateway.LLMGateway", return_value=_mock_gw(95.0, 0.95)):
         r = await run_prediction_activity(
             {"tenant_id": "t1", "price_series": series, "workflow_run_id": "wf-2"}
