@@ -1,346 +1,310 @@
 """
-demo/app.py — Streamlit demo for the oil-price-demo AgentSmith tenant.
+demo/app.py — Streamlit GUI for the oil-price-demo pipeline.
 
-Demonstrates the three-agent pipeline without requiring the full framework
-runtime (Temporal worker, Postgres, Redis) — the agent logic is reproduced
-inline using the same thresholds and formulas as workflows/activities.py.
+Connects to the live Temporal server, starts OilPricePredictionWorkflow,
+polls for status, and lets the operator approve or reject the HITL gate —
+the same operations trigger_workflow.py and resolve_hitl.py do from the CLI.
 
-Run locally:
-    pip install streamlit
-    streamlit run demo/app.py
+Requires the Temporal worker (worker.py) to be running.
 
-Deploy to Streamlit Cloud:
-    Push this repo to GitHub; connect at share.streamlit.io.
-    No secrets required for the simulation mode.
-    Set GROQ_API_KEY (or OPENAI_API_KEY / ANTHROPIC_API_KEY) to enable
-    real LLM calls via the "Live LLM" toggle in the sidebar.
+Environment variables (same as worker.py / trigger_workflow.py):
+    TEMPORAL_ADDRESS   Temporal frontend host:port  (default: localhost:7233)
+    TEMPORAL_TLS       "true" to enable TLS         (default: false)
+    TENANT_ID          tenant identifier             (default: oil-price-demo)
 """
 
 from __future__ import annotations
 
-import json
+import asyncio
 import os
-import random
-import time
+import uuid
+from dataclasses import dataclass
 from typing import Optional
 
 import streamlit as st
 
 # ── page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Oil Price Agent — AgentSmith Demo",
-    page_icon="\U0001f6e2️",
+    page_title="Oil Price Agent — AgentSmith",
+    page_icon="\U0001f6e2\ufe0f",
     layout="wide",
 )
 
-# ── thresholds (must match workflows/activities.py) ────────────────────────────
-ANOMALY_STD_DEV_THRESHOLD = 3.0
-CONFIDENCE_HITL_THRESHOLD = 0.6
+TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+TEMPORAL_TLS = os.environ.get("TEMPORAL_TLS", "false").lower() == "true"
+TENANT_ID = os.environ.get("TENANT_ID", "oil-price-demo")
+TASK_QUEUE = f"agent-tasks-{TENANT_ID}"
 
 
-# ── inline agent logic (no framework runtime needed) ──────────────────────────
-
-def _stats(series: list[float]) -> tuple[float, float, float]:
-    n = len(series)
-    if n == 0:
-        return 0.0, 0.0, 0.0
-    mean = sum(series) / n
-    std_dev = (sum((p - mean) ** 2 for p in series) / n) ** 0.5
-    return mean, std_dev, series[-1]
+@dataclass
+class OilPriceWorkflowInput:
+    tenant_id: str
+    workflow_run_id: str
+    price_series: list
 
 
-def ingest(price_series: list[float], tenant_id: str) -> dict:
-    """IngestionAgent — pass-through; real impl calls a price-feed API."""
-    return {"price_series": price_series, "tenant_id": tenant_id}
+# ── Temporal helpers ──────────────────────────────────────────────────────────
+
+def _run(coro):
+    """Run a coroutine from synchronous Streamlit context."""
+    return asyncio.get_event_loop().run_until_complete(coro)
 
 
-def predict(payload: dict, llm_response: Optional[str] = None) -> dict:
-    """PredictionAgent — anomaly detection + LLM (or simulated) forecast."""
-    series = payload.get("price_series", [])
-    mean, std_dev, latest = _stats(series)
-    is_anomaly = std_dev > 0 and abs(latest - mean) > ANOMALY_STD_DEV_THRESHOLD * std_dev
-
-    if llm_response:
-        try:
-            parsed = json.loads(llm_response)
-            prediction = float(parsed["prediction"])
-            confidence = float(parsed["confidence"])
-        except Exception:
-            prediction, confidence = latest, 0.0
-    else:
-        # Simulated forecast: small random drift; confidence drops on anomaly
-        prediction = round(latest * random.uniform(0.98, 1.02), 2)
-        base_conf = random.uniform(0.45, 0.75) if is_anomaly else random.uniform(0.65, 0.97)
-        confidence = round(base_conf, 2)
-
-    needs_hitl = is_anomaly or confidence < CONFIDENCE_HITL_THRESHOLD
-    return {
-        "tenant_id": payload["tenant_id"],
-        "prediction": prediction,
-        "confidence": confidence,
-        "is_anomaly": is_anomaly,
-        "needs_hitl": needs_hitl,
-        "mean": round(mean, 2),
-        "std_dev": round(std_dev, 2),
-        "latest": latest,
-    }
+async def _connect():
+    from temporalio.client import Client
+    return await Client.connect(TEMPORAL_ADDRESS, tls=TEMPORAL_TLS)
 
 
-def _call_llm(series: list[float]) -> Optional[str]:
-    """Call a real LLM if any key is configured; return raw JSON string or None."""
-    prompt = (
-        f"Given recent oil prices {series}, predict the next price point and a "
-        f'confidence score (0-1). Reply with ONLY valid JSON: '
-        f'{{"prediction": <float>, "confidence": <float>}}'
+async def _start_workflow(series: list[float], workflow_id: str) -> str:
+    client = await _connect()
+    await client.start_workflow(
+        "OilPricePredictionWorkflow",
+        OilPriceWorkflowInput(
+            tenant_id=TENANT_ID,
+            workflow_run_id=workflow_id,
+            price_series=series,
+        ),
+        id=workflow_id,
+        task_queue=TASK_QUEUE,
     )
-    try:
-        groq_key = os.environ.get("GROQ_API_KEY", "")
-        openai_key = os.environ.get("OPENAI_API_KEY", "")
-        anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    return workflow_id
 
-        if groq_key:
-            from openai import OpenAI  # groq is openai-compatible
-            client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=64,
-                temperature=0.2,
-            )
-            return resp.choices[0].message.content.strip()
-        elif openai_key:
-            from openai import OpenAI
-            client = OpenAI(api_key=openai_key)
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=64,
-                temperature=0.2,
-            )
-            return resp.choices[0].message.content.strip()
-        elif anthropic_key:
-            import anthropic
-            client = anthropic.Anthropic(api_key=anthropic_key)
-            msg = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=64,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return msg.content[0].text.strip()
-    except Exception as exc:
-        st.warning(f"LLM call failed ({exc}) — falling back to simulation.")
+
+async def _get_status(workflow_id: str) -> dict:
+    """Return a status dict without blocking on result()."""
+    from temporalio.client import Client
+    from temporalio.service import RPCError
+
+    client = await _connect()
+    handle = client.get_workflow_handle(workflow_id)
+    try:
+        desc = await handle.describe()
+        status = str(desc.status).split(".")[-1]  # e.g. "RUNNING", "COMPLETED", "FAILED"
+        return {"status": status, "id": workflow_id}
+    except RPCError as exc:
+        return {"status": "ERROR", "error": str(exc)}
+
+
+async def _send_signal(workflow_id: str, approve: bool) -> None:
+    client = await _connect()
+    handle = client.get_workflow_handle(workflow_id)
+    await handle.signal("hitl_approved", approve)
+
+
+async def _get_result(workflow_id: str) -> Optional[dict]:
+    """Non-blocking: return result if workflow is complete, else None."""
+    from temporalio.client import Client, WorkflowExecutionStatus
+
+    client = await _connect()
+    handle = client.get_workflow_handle(workflow_id)
+    desc = await handle.describe()
+    if desc.status == WorkflowExecutionStatus.COMPLETED:
+        return await handle.result()
     return None
 
 
-def decide(payload: dict) -> dict:
-    """DecisionAgent — validate payload and place order / send alert."""
-    if "prediction" not in payload or not isinstance(payload.get("confidence"), (int, float)):
-        raise ValueError("Missing prediction/confidence fields")
-    action = "ORDER_PLACED" if payload.get("confidence", 0) >= CONFIDENCE_HITL_THRESHOLD else "ALERT_SENT"
-    return {
-        "status": "success",
-        "prediction": payload.get("prediction"),
-        "confidence": payload.get("confidence"),
-        "action": action,
-    }
+async def _terminate(workflow_id: str) -> None:
+    client = await _connect()
+    handle = client.get_workflow_handle(workflow_id)
+    await handle.terminate(reason="Cancelled via demo UI")
 
 
 # ── session state ──────────────────────────────────────────────────────────────
-for key, default in [("history", []), ("hitl_pending", None)]:
+for key, default in [
+    ("workflow_id", None),
+    ("last_status", None),
+    ("result", None),
+    ("history", []),
+    ("hitl_triggered", False),
+    ("error", None),
+]:
     if key not in st.session_state:
         st.session_state[key] = default
 
 # ── sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.title("\U0001f6e2️ Oil Price Agent")
-    st.caption("AgentSmith framework · tenant demo")
-    st.markdown("---")
-
-    st.subheader("Settings")
-    tenant_id = st.text_input("Tenant ID", value="oil-price-demo")
-
-    live_llm = st.toggle(
-        "Live LLM calls",
-        value=False,
-        help="Uses GROQ_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY if set. Falls back to simulation.",
-    )
+    st.title("\U0001f6e2\ufe0f Oil Price Agent")
+    st.caption(f"Tenant: `{TENANT_ID}`")
+    st.caption(f"Temporal: `{TEMPORAL_ADDRESS}`")
 
     st.markdown("---")
     st.subheader("Price series")
     preset = st.selectbox(
-        "Preset scenario",
-        ["Stable market", "Price spike (anomaly)", "Low confidence", "Custom"],
+        "Preset",
+        ["Normal run (no HITL)", "HITL — price spike", "HITL — low confidence override", "Custom"],
     )
-
     presets = {
-        "Stable market":          "80.1, 80.5, 79.8, 80.2, 80.0, 79.9, 80.3",
-        "Price spike (anomaly)":  "70.0, 70.1, 69.9, 70.0, 70.1, 70.0, 70.2, 69.8, 70.1, 70.0, 110.0",
-        "Low confidence":         "80.0, 80.1, 79.9, 80.2, 80.0",
-        "Custom":                 "80.0, 80.5, 79.8, 80.2, 80.0",
+        "Normal run (no HITL)":           "70.0, 71.0, 69.5, 70.2, 70.8, 71.0, 70.5",
+        "HITL — price spike":             "70.0, 70.1, 69.9, 70.0, 70.1, 70.0, 70.2, 69.8, 70.1, 70.0, 110.0",
+        "HITL — low confidence override": "70.0, 71.0, 69.5, 70.2, 70.8",
+        "Custom":                         "70.0, 71.0, 69.5, 70.2, 70.8",
     }
-    series_input = st.text_area(
-        "Prices (comma-separated, USD/bbl)", value=presets[preset], height=80
+    series_input = st.text_area("Prices (comma-separated, USD/bbl)", value=presets[preset], height=80)
+
+    st.markdown("---")
+    run_btn = st.button(
+        "\u25b6\ufe0f  Start workflow",
+        type="primary",
+        use_container_width=True,
+        disabled=st.session_state.workflow_id is not None,
     )
-
-    manual_llm = st.text_area(
-        "Override LLM response (optional JSON)",
-        placeholder='{"prediction": 81.5, "confidence": 0.87}',
-        height=68,
-        help="Paste any JSON here to bypass the LLM and test a specific forecast.",
+    cancel_btn = st.button(
+        "\u23f9\ufe0f  Cancel",
+        use_container_width=True,
+        disabled=st.session_state.workflow_id is None,
     )
+    refresh_btn = st.button("\U0001f504  Refresh status", use_container_width=True)
 
-    run_btn = st.button("▶️  Run pipeline", type="primary", use_container_width=True)
-
-# ── header ──────────────────────────────────────────────────────────────────────
+# ── main ───────────────────────────────────────────────────────────────────────
 st.title("Oil Price Prediction Pipeline")
-st.caption(
-    "Three-agent pipeline: **Ingestion → Prediction → Decision** "
-    "with Human-in-the-Loop (HITL) gate on anomaly or low confidence."
-)
+st.caption("Ingestion \u2192 Prediction \u2192 HITL gate \u2192 Decision · backed by live Temporal worker")
 
-c1, c2, c3 = st.columns(3)
-with c1:
+col1, col2, col3 = st.columns(3)
+with col1:
     st.markdown("### 1 \xb7 IngestionAgent")
-    st.info("Fetches and validates the price series.\n\n_Real impl: calls a live price-feed API._")
-with c2:
+    st.info("Validates the price series.\n\n_Calls `fetch_oil_price_activity` on the worker._")
+with col2:
     st.markdown("### 2 \xb7 PredictionAgent")
-    st.info(
-        "Detects price anomalies (>3σ) and calls an LLM to forecast "
-        "the next price point + confidence score."
-    )
-with c3:
+    st.info("Anomaly detection (>3\u03c3) + LLM forecast.\n\n_Calls `run_prediction_activity` via LLMGateway._")
+with col3:
     st.markdown("### 3 \xb7 DecisionAgent")
-    st.info(
-        "Places the order (or sends alert) on approved predictions. "
-        "Routes anomalies / low-confidence runs to the HITL queue first."
-    )
+    st.info("Places order or routes to DLQ.\n\n_Calls `decide_action_activity`; HITL gate pauses here._")
 
 st.markdown("---")
 
-# ── pipeline run ───────────────────────────────────────────────────────────────
+# ── start ──────────────────────────────────────────────────────────────────────
 if run_btn:
     try:
         series = [float(x.strip()) for x in series_input.split(",") if x.strip()]
     except ValueError:
-        st.error("Invalid price series — enter comma-separated numbers.")
+        st.error("Invalid series — enter comma-separated numbers.")
         st.stop()
     if len(series) < 3:
         st.error("Need at least 3 price points.")
         st.stop()
 
-    with st.status("Running pipeline…", expanded=True) as status:
-        # Step 1
-        st.write("**Step 1 — IngestionAgent**")
-        ingested = ingest(series, tenant_id)
-        time.sleep(0.3)
-        st.write(f" Loaded {len(series)} price points for tenant `{tenant_id}`")
+    wf_id = f"oil-price-demo-{uuid.uuid4().hex[:8]}"
+    try:
+        _run(_start_workflow(series, wf_id))
+        st.session_state.workflow_id = wf_id
+        st.session_state.last_status = "RUNNING"
+        st.session_state.result = None
+        st.session_state.hitl_triggered = False
+        st.session_state.error = None
+        st.rerun()
+    except Exception as exc:
+        st.error(f"Failed to start workflow: {exc}")
 
-        # Step 2
-        st.write("**Step 2 — PredictionAgent**")
-        override = manual_llm.strip() or None
-        if not override and live_llm:
-            with st.spinner("Calling LLM…"):
-                override = _call_llm(series)
-        pred = predict(ingested, llm_response=override)
-        time.sleep(0.2)
+# ── cancel ─────────────────────────────────────────────────────────────────────
+if cancel_btn and st.session_state.workflow_id:
+    try:
+        _run(_terminate(st.session_state.workflow_id))
+    except Exception:
+        pass
+    st.session_state.workflow_id = None
+    st.session_state.last_status = None
+    st.rerun()
 
-        a_icon = "\U0001f6a8" if pred["is_anomaly"] else "✅"
-        c_icon = "⚠️" if pred["confidence"] < CONFIDENCE_HITL_THRESHOLD else "✅"
-        st.write(
-            f" Anomaly: {a_icon}  |  Confidence: {c_icon} {pred['confidence']:.2f}  |  "
-            f"Forecast: **${pred['prediction']}**"
+# ── status polling ─────────────────────────────────────────────────────────────
+if st.session_state.workflow_id:
+    wf_id = st.session_state.workflow_id
+
+    try:
+        status_dict = _run(_get_status(wf_id))
+        status = status_dict.get("status", "UNKNOWN")
+        st.session_state.last_status = status
+    except Exception as exc:
+        status = "ERROR"
+        st.session_state.error = str(exc)
+
+    st.markdown(f"**Workflow:** `{wf_id}`")
+
+    status_map = {
+        "RUNNING":   ("\U0001f7e1 Running", "warning"),
+        "COMPLETED": ("\u2705 Completed", "success"),
+        "FAILED":    ("\u274c Failed", "error"),
+        "TERMINATED":("\u23f9\ufe0f Terminated", "warning"),
+        "ERROR":     ("\u274c Error connecting to Temporal", "error"),
+    }
+    label, kind = status_map.get(status, (f"\u2753 {status}", "info"))
+    getattr(st, kind)(label)
+
+    if status == "RUNNING":
+        # Heuristic: if workflow has been running > ~5 s, likely at HITL gate
+        st.info(
+            "Workflow is running on the Temporal worker. "
+            "If the price series triggered an anomaly or low confidence, "
+            "the HITL gate below will be active."
         )
-        st.write(
-            f" _(latest ${pred['latest']}, mean ${pred['mean']}, σ {pred['std_dev']})_"
+        # Show HITL panel — the operator signals regardless; the workflow
+        # ignores the signal if it hasn't reached the gate yet.
+        st.markdown("---")
+        st.markdown("## \U0001f6d1 Human-in-the-Loop Gate")
+        st.warning(
+            "If the prediction agent flagged this run (anomaly >3\u03c3 or "
+            "confidence <0.6), the workflow is paused here waiting for your signal."
         )
+        ca, cb, _ = st.columns([2, 2, 4])
+        with ca:
+            if st.button("\u2705 Approve", type="primary", use_container_width=True):
+                try:
+                    _run(_send_signal(wf_id, approve=True))
+                    st.success("Approval signal sent.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Signal failed: {exc}")
+        with cb:
+            if st.button("\u274c Reject", use_container_width=True):
+                try:
+                    _run(_send_signal(wf_id, approve=False))
+                    st.error("Rejection signal sent — workflow routes to Dead-Letter Queue.")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Signal failed: {exc}")
 
-        # Step 3
-        if pred["needs_hitl"]:
-            reasons = []
-            if pred["is_anomaly"]:
-                reasons.append(
-                    f"price spike >3σ "
-                    f"(|{pred['latest']} − {pred['mean']}| > "
-                    f"{ANOMALY_STD_DEV_THRESHOLD}\xd7{pred['std_dev']})"
-                )
-            if pred["confidence"] < CONFIDENCE_HITL_THRESHOLD:
-                reasons.append(f"low confidence ({pred['confidence']:.2f} < {CONFIDENCE_HITL_THRESHOLD})")
-            st.write(f"**Step 3 — HITL gate triggered:** {'; '.join(reasons)}")
-            st.session_state.hitl_pending = pred
-            status.update(label="⏸️  Paused — awaiting human review", state="running")
-        else:
-            st.write("**Step 3 — DecisionAgent**")
-            result = decide(pred)
-            time.sleep(0.2)
-            st.write(f" Action: **{result['action']}** at ${result['prediction']} (conf {result['confidence']:.2f})")
-            st.session_state.hitl_pending = None
-            st.session_state.history.append({**pred, "action": result["action"], "hitl": False})
-            status.update(label="✅  Pipeline complete", state="complete")
+        st.markdown("_Click \U0001f504 Refresh status in the sidebar to check for completion._")
 
-# ── HITL review panel ─────────────────────────────────────────────────────────
-if st.session_state.hitl_pending:
-    p = st.session_state.hitl_pending
-    st.markdown("---")
-    st.markdown("## \U0001f6d1 Human-in-the-Loop Review")
-    st.warning(
-        f"Pipeline paused — prediction **${p['prediction']}** "
-        f"(confidence {p['confidence']:.2f}) requires human approval before the order is placed."
-    )
+    elif status == "COMPLETED":
+        try:
+            result = _run(_get_result(wf_id))
+            if result:
+                st.session_state.result = result
+                st.session_state.history.append({"workflow_id": wf_id, "result": result})
+                st.markdown("### Result")
+                st.json(result)
+        except Exception as exc:
+            st.warning(f"Workflow completed but could not fetch result: {exc}")
 
-    reasons = []
-    if p.get("is_anomaly"):
-        reasons.append(
-            f"**Price anomaly:** |{p['latest']} − {p['mean']}| > "
-            f"{ANOMALY_STD_DEV_THRESHOLD}\xd7{p['std_dev']} standard deviations"
-        )
-    if p.get("confidence", 1) < CONFIDENCE_HITL_THRESHOLD:
-        reasons.append(f"**Low model confidence:** {p['confidence']:.2f} < threshold {CONFIDENCE_HITL_THRESHOLD}")
-    for r in reasons:
-        st.markdown(f"- {r}")
-
-    ca, cb, _ = st.columns([2, 2, 4])
-    with ca:
-        if st.button("✅ Approve", type="primary", use_container_width=True):
-            result = decide(p)
-            st.session_state.history.append({**p, "action": result["action"], "hitl": True, "hitl_decision": "approved"})
-            st.session_state.hitl_pending = None
-            st.success(f"Approved → **{result['action']}** at ${result['prediction']}")
+        if st.button("Start new run"):
+            st.session_state.workflow_id = None
+            st.session_state.last_status = None
             st.rerun()
-    with cb:
-        if st.button("❌ Reject", use_container_width=True):
-            st.session_state.history.append({**p, "action": "REJECTED", "hitl": True, "hitl_decision": "rejected"})
-            st.session_state.hitl_pending = None
-            st.error("Rejected — prediction discarded, routed to Dead-Letter Queue.")
+
+    elif status in ("FAILED", "TERMINATED", "ERROR"):
+        if st.session_state.error:
+            st.error(st.session_state.error)
+        if st.button("Start new run"):
+            st.session_state.workflow_id = None
+            st.session_state.last_status = None
             st.rerun()
 
-# ── run history ───────────────────────────────────────────────────────────────
+elif not run_btn:
+    st.info("Configure the price series in the sidebar and click \u25b6\ufe0f Start workflow.")
+
+# ── run history ────────────────────────────────────────────────────────────────
 if st.session_state.history:
     st.markdown("---")
     st.markdown("## Run history")
-    h = st.session_state.history
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total runs", len(h))
-    m2.metric("HITL-flagged", sum(1 for r in h if r.get("hitl")))
-    m3.metric("Avg confidence", f"{sum(r['confidence'] for r in h) / len(h):.2f}")
-
     rows = [
         {
-            "Prediction ($)": r.get("prediction"),
-            "Confidence": f"{r.get('confidence', 0):.2f}",
-            "Anomaly": "\U0001f6a8" if r.get("is_anomaly") else "—",
-            "HITL": (
-                "✅ approved" if r.get("hitl_decision") == "approved"
-                else ("❌ rejected" if r.get("hitl_decision") == "rejected"
-                      else "—")
-            ),
-            "Action": r.get("action", "—"),
+            "Workflow ID": h["workflow_id"],
+            "Status": h.get("result", {}).get("status", "—"),
+            "Prediction ($)": h.get("result", {}).get("prediction", "—"),
+            "Confidence": h.get("result", {}).get("confidence", "—"),
         }
-        for r in reversed(h)
+        for h in reversed(st.session_state.history)
     ]
     st.dataframe(rows, use_container_width=True, hide_index=True)
-    if st.button("Clear history"):
-        st.session_state.history = []
-        st.rerun()
 
 # ── footer ─────────────────────────────────────────────────────────────────────
 st.markdown("---")
