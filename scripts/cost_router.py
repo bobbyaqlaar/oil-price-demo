@@ -403,7 +403,7 @@ def call(
         last_exc: Exception = RuntimeError("no attempts made")
         for attempt in range(3):
             if attempt:
-                time.sleep(2 ** attempt * 5)  # 10s, 20s
+                time.sleep(2**attempt * 5)  # 10s, 20s
             resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
             if resp.status_code == 429:
                 last_exc = RuntimeError(
