@@ -35,20 +35,28 @@ run_evals = _load_run_evals()
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def _case(id_: str = "c1") -> dict:
     return {"id": id_, "input": "oil price?", "expected_output": "~$75"}
 
 
 def _result(score: float = 0.9, pipeline_error: bool = False) -> dict:
     return {
-        "case_id": "c1", "input": "oil price?", "expected_tool": "any",
-        "latency_ms": 50, "correctness": score, "tool_accuracy": score,
-        "score": score, "quality_notes": "", "error": None,
+        "case_id": "c1",
+        "input": "oil price?",
+        "expected_tool": "any",
+        "latency_ms": 50,
+        "correctness": score,
+        "tool_accuracy": score,
+        "score": score,
+        "quality_notes": "",
+        "error": None,
         "pipeline_error": pipeline_error,
     }
 
 
 # ── tests ─────────────────────────────────────────────────────────────────────
+
 
 def test_skip_fewer_than_3_cases(monkeypatch):
     monkeypatch.setattr(run_evals, "_load_golden_cases", lambda: [_case()])
@@ -57,40 +65,57 @@ def test_skip_fewer_than_3_cases(monkeypatch):
 
 
 def test_skip_exactly_2_cases(monkeypatch):
-    monkeypatch.setattr(run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2")])
+    monkeypatch.setattr(
+        run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2")]
+    )
     monkeypatch.setattr(run_evals, "_load_criteria", lambda: {})
     assert run_evals.run_scorecard() == 2
 
 
 def test_skip_when_all_pipeline_errors(monkeypatch):
     """All 3 cases fail with PIPELINE_ERROR (e.g. Groq 429) → exit 2, not 1."""
-    monkeypatch.setattr(run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")])
+    monkeypatch.setattr(
+        run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")]
+    )
     monkeypatch.setattr(run_evals, "_load_criteria", lambda: {})
-    monkeypatch.setattr(run_evals, "_judge_case",
-        lambda case, criteria, judge: _result(score=0.0, pipeline_error=True))
+    monkeypatch.setattr(
+        run_evals,
+        "_judge_case",
+        lambda case, criteria, judge: _result(score=0.0, pipeline_error=True),
+    )
     assert run_evals.run_scorecard() == 2
 
 
 def test_pass_above_threshold(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")])
+    monkeypatch.setattr(
+        run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")]
+    )
     monkeypatch.setattr(run_evals, "_load_criteria", lambda: {})
-    monkeypatch.setattr(run_evals, "_judge_case",
-        lambda case, criteria, judge: _result(score=0.9))
+    monkeypatch.setattr(
+        run_evals, "_judge_case", lambda case, criteria, judge: _result(score=0.9)
+    )
     monkeypatch.setattr(run_evals, "_results_path", lambda: tmp_path / "r.json")
     # Suppress desktop notification
-    monkeypatch.setattr(run_evals, "notify_eval_result", lambda *a, **kw: None, raising=False)
+    monkeypatch.setattr(
+        run_evals, "notify_eval_result", lambda *a, **kw: None, raising=False
+    )
     with patch("builtins.open", mock_open()):
         code = run_evals.run_scorecard(fail_below=0.80)
     assert code == 0
 
 
 def test_fail_below_threshold(tmp_path, monkeypatch):
-    monkeypatch.setattr(run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")])
+    monkeypatch.setattr(
+        run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")]
+    )
     monkeypatch.setattr(run_evals, "_load_criteria", lambda: {})
-    monkeypatch.setattr(run_evals, "_judge_case",
-        lambda case, criteria, judge: _result(score=0.5))
+    monkeypatch.setattr(
+        run_evals, "_judge_case", lambda case, criteria, judge: _result(score=0.5)
+    )
     monkeypatch.setattr(run_evals, "_results_path", lambda: tmp_path / "r.json")
-    monkeypatch.setattr(run_evals, "notify_eval_result", lambda *a, **kw: None, raising=False)
+    monkeypatch.setattr(
+        run_evals, "notify_eval_result", lambda *a, **kw: None, raising=False
+    )
     with patch("builtins.open", mock_open()):
         code = run_evals.run_scorecard(fail_below=0.80)
     assert code == 1
@@ -98,7 +123,9 @@ def test_fail_below_threshold(tmp_path, monkeypatch):
 
 def test_mixed_errors_and_scores_not_skipped(tmp_path, monkeypatch):
     """1 pipeline error + 2 real scores → NOT a full skip → fails on low avg."""
-    monkeypatch.setattr(run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")])
+    monkeypatch.setattr(
+        run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")]
+    )
     monkeypatch.setattr(run_evals, "_load_criteria", lambda: {})
     results = [
         _result(score=0.0, pipeline_error=True),
@@ -106,9 +133,13 @@ def test_mixed_errors_and_scores_not_skipped(tmp_path, monkeypatch):
         _result(score=0.8),
     ]
     it = iter(results)
-    monkeypatch.setattr(run_evals, "_judge_case", lambda case, criteria, judge: next(it))
+    monkeypatch.setattr(
+        run_evals, "_judge_case", lambda case, criteria, judge: next(it)
+    )
     monkeypatch.setattr(run_evals, "_results_path", lambda: tmp_path / "r.json")
-    monkeypatch.setattr(run_evals, "notify_eval_result", lambda *a, **kw: None, raising=False)
+    monkeypatch.setattr(
+        run_evals, "notify_eval_result", lambda *a, **kw: None, raising=False
+    )
     with patch("builtins.open", mock_open()):
         code = run_evals.run_scorecard(fail_below=0.80)
     # avg = (0 + 0.9 + 0.8) / 3 = 0.567 < 0.80
