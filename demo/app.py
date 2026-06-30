@@ -45,6 +45,7 @@ class OilPriceWorkflowInput:
 
 # ── Temporal helpers ──────────────────────────────────────────────────────────
 
+
 def _run(coro):
     """Run a coroutine from synchronous Streamlit context."""
     return asyncio.get_event_loop().run_until_complete(coro)
@@ -52,6 +53,7 @@ def _run(coro):
 
 async def _connect():
     from temporalio.client import Client
+
     return await Client.connect(TEMPORAL_ADDRESS, tls=TEMPORAL_TLS)
 
 
@@ -78,7 +80,9 @@ async def _get_status(workflow_id: str) -> dict:
     handle = client.get_workflow_handle(workflow_id)
     try:
         desc = await handle.describe()
-        status = str(desc.status).split(".")[-1]  # e.g. "RUNNING", "COMPLETED", "FAILED"
+        status = str(desc.status).split(".")[
+            -1
+        ]  # e.g. "RUNNING", "COMPLETED", "FAILED"
         return {"status": status, "id": workflow_id}
     except RPCError as exc:
         return {"status": "ERROR", "error": str(exc)}
@@ -130,15 +134,22 @@ with st.sidebar:
     st.subheader("Price series")
     preset = st.selectbox(
         "Preset",
-        ["Normal run (no HITL)", "HITL — price spike", "HITL — low confidence override", "Custom"],
+        [
+            "Normal run (no HITL)",
+            "HITL — price spike",
+            "HITL — low confidence override",
+            "Custom",
+        ],
     )
     presets = {
-        "Normal run (no HITL)":           "70.0, 71.0, 69.5, 70.2, 70.8, 71.0, 70.5",
-        "HITL — price spike":             "70.0, 70.1, 69.9, 70.0, 70.1, 70.0, 70.2, 69.8, 70.1, 70.0, 110.0",
+        "Normal run (no HITL)": "70.0, 71.0, 69.5, 70.2, 70.8, 71.0, 70.5",
+        "HITL — price spike": "70.0, 70.1, 69.9, 70.0, 70.1, 70.0, 70.2, 69.8, 70.1, 70.0, 110.0",
         "HITL — low confidence override": "70.0, 71.0, 69.5, 70.2, 70.8",
-        "Custom":                         "70.0, 71.0, 69.5, 70.2, 70.8",
+        "Custom": "70.0, 71.0, 69.5, 70.2, 70.8",
     }
-    series_input = st.text_area("Prices (comma-separated, USD/bbl)", value=presets[preset], height=80)
+    series_input = st.text_area(
+        "Prices (comma-separated, USD/bbl)", value=presets[preset], height=80
+    )
 
     st.markdown("---")
     run_btn = st.button(
@@ -156,18 +167,26 @@ with st.sidebar:
 
 # ── main ───────────────────────────────────────────────────────────────────────
 st.title("Oil Price Prediction Pipeline")
-st.caption("Ingestion \u2192 Prediction \u2192 HITL gate \u2192 Decision · backed by live Temporal worker")
+st.caption(
+    "Ingestion \u2192 Prediction \u2192 HITL gate \u2192 Decision · backed by live Temporal worker"
+)
 
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("### 1 \xb7 IngestionAgent")
-    st.info("Validates the price series.\n\n_Calls `fetch_oil_price_activity` on the worker._")
+    st.info(
+        "Validates the price series.\n\n_Calls `fetch_oil_price_activity` on the worker._"
+    )
 with col2:
     st.markdown("### 2 \xb7 PredictionAgent")
-    st.info("Anomaly detection (>3\u03c3) + LLM forecast.\n\n_Calls `run_prediction_activity` via LLMGateway._")
+    st.info(
+        "Anomaly detection (>3\u03c3) + LLM forecast.\n\n_Calls `run_prediction_activity` via LLMGateway._"
+    )
 with col3:
     st.markdown("### 3 \xb7 DecisionAgent")
-    st.info("Places order or routes to DLQ.\n\n_Calls `decide_action_activity`; HITL gate pauses here._")
+    st.info(
+        "Places order or routes to DLQ.\n\n_Calls `decide_action_activity`; HITL gate pauses here._"
+    )
 
 st.markdown("---")
 
@@ -219,11 +238,11 @@ if st.session_state.workflow_id:
     st.markdown(f"**Workflow:** `{wf_id}`")
 
     status_map = {
-        "RUNNING":   ("\U0001f7e1 Running", "warning"),
+        "RUNNING": ("\U0001f7e1 Running", "warning"),
         "COMPLETED": ("\u2705 Completed", "success"),
-        "FAILED":    ("\u274c Failed", "error"),
-        "TERMINATED":("\u23f9\ufe0f Terminated", "warning"),
-        "ERROR":     ("\u274c Error connecting to Temporal", "error"),
+        "FAILED": ("\u274c Failed", "error"),
+        "TERMINATED": ("\u23f9\ufe0f Terminated", "warning"),
+        "ERROR": ("\u274c Error connecting to Temporal", "error"),
     }
     label, kind = status_map.get(status, (f"\u2753 {status}", "info"))
     getattr(st, kind)(label)
@@ -256,19 +275,25 @@ if st.session_state.workflow_id:
             if st.button("\u274c Reject", use_container_width=True):
                 try:
                     _run(_send_signal(wf_id, approve=False))
-                    st.error("Rejection signal sent — workflow routes to Dead-Letter Queue.")
+                    st.error(
+                        "Rejection signal sent — workflow routes to Dead-Letter Queue."
+                    )
                     st.rerun()
                 except Exception as exc:
                     st.error(f"Signal failed: {exc}")
 
-        st.markdown("_Click \U0001f504 Refresh status in the sidebar to check for completion._")
+        st.markdown(
+            "_Click \U0001f504 Refresh status in the sidebar to check for completion._"
+        )
 
     elif status == "COMPLETED":
         try:
             result = _run(_get_result(wf_id))
             if result:
                 st.session_state.result = result
-                st.session_state.history.append({"workflow_id": wf_id, "result": result})
+                st.session_state.history.append(
+                    {"workflow_id": wf_id, "result": result}
+                )
                 st.markdown("### Result")
                 st.json(result)
         except Exception as exc:
@@ -288,7 +313,9 @@ if st.session_state.workflow_id:
             st.rerun()
 
 elif not run_btn:
-    st.info("Configure the price series in the sidebar and click \u25b6\ufe0f Start workflow.")
+    st.info(
+        "Configure the price series in the sidebar and click \u25b6\ufe0f Start workflow."
+    )
 
 # ── run history ────────────────────────────────────────────────────────────────
 if st.session_state.history:
