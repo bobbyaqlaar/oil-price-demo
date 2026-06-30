@@ -1,41 +1,62 @@
 # Demo app
 
-Interactive Streamlit demo for the oil-price-demo AgentSmith tenant.
-Demonstrates the three-agent pipeline without requiring the full framework
-runtime (Temporal, Postgres, Redis).
+Streamlit GUI for the oil-price-demo AgentSmith tenant.
+
+Connects to the **live Temporal server** and running **worker** — it is a frontend
+for the real pipeline, not a simulation.
+
+## Prerequisites
+
+The full stack must be running before you start the demo app:
+- Temporal server (default: `localhost:7233`)
+- `worker.py` registered on the `agent-tasks-oil-price-demo` task queue
+- Postgres (for idempotency / DLQ, used by the worker)
+
+See [OPERATIONS.md §D](../OPERATIONS.md) and the root README for setup.
 
 ## Run locally
 
 ```bash
-pip install streamlit openai anthropic
+pip install streamlit temporalio openai anthropic
 streamlit run demo/app.py
 ```
 
-Open http://localhost:8501.
+Opens at http://localhost:8501.
 
-## Scenarios to try
+Set env vars if your stack is not on localhost:
+
+```bash
+export TEMPORAL_ADDRESS=my-temporal-host:7233
+export TENANT_ID=oil-price-demo
+streamlit run demo/app.py
+```
+
+## Deploy to Cloud Run
+
+The demo UI can run on Cloud Run while the Temporal worker runs elsewhere
+(Cloud Run, GKE, Compute Engine — anything reachable from the demo service).
+
+```bash
+gcloud run deploy oil-price-demo-ui \
+  --source . \
+  --dockerfile demo/Dockerfile \
+  --region us-central1 \
+  --project $GCP_PROJECT_ID \
+  --allow-unauthenticated \
+  --port 8080 \
+  --set-env-vars "TEMPORAL_ADDRESS=<your-temporal-host>:7233,TENANT_ID=oil-price-demo"
+```
+
+The CI workflow `.github/workflows/cd-demo-ui.yml` deploys automatically
+on every push to `develop` or `main` that touches `demo/**`.
+
+## Scenarios
 
 | Preset | What it demonstrates |
 |---|---|
-| **Stable market** | Normal pipeline run — all three agents complete without HITL |
-| **Price spike (anomaly)** | Last price is >3σ from the mean → HITL gate fires |
-| **Low confidence** | Simulated low-confidence LLM response → HITL gate fires |
+| Normal run | All three agents complete, no HITL gate — result shows immediately |
+| Price spike | Anomaly >3σ triggers HITL gate — Approve/Reject buttons send signal to Temporal |
+| Custom | Enter any price series |
 
-## Enable real LLM calls
-
-Set any one of these env vars before starting:
-
-```bash
-export GROQ_API_KEY=gsk_...        # free tier, fastest
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
-```
-
-Without any key the app simulates the LLM response (same pipeline logic, random forecast).
-
-## Deploy to Streamlit Cloud
-
-1. Push this repo to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io) → New app
-3. Point at `demo/app.py`
-4. Optionally add API key secrets in the app settings
+The HITL Approve/Reject buttons call `handle.signal("hitl_approved", True/False)` on
+the Temporal workflow — exactly what `resolve_hitl.py` does from the CLI.
