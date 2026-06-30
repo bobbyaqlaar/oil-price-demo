@@ -332,6 +332,8 @@ def call(
     silently swapped for whatever tier the prompt's length/keywords land
     on — see eval_judge.py's run_judge()).
     """
+    import time
+
     route_result = (
         _route_for_model(force_model)
         if force_model
@@ -384,8 +386,25 @@ def call(
             "/messages" if provider == "anthropic" else path_suffix
         )
 
-        resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
-        resp.raise_for_status()
+        # Retry up to 3 times on 429 rate-limit with exponential backoff.
+        # CI evals fire several requests in quick succession and Groq's free
+        # tier throttles at ~30 RPM; a short sleep is enough to clear it.
+        last_exc: Exception = RuntimeError("no attempts made")
+        for attempt in range(3):
+            if attempt:
+                time.sleep(2 ** attempt * 5)  # 10s, 20s
+            resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
+            if resp.status_code == 429:
+                last_exc = RuntimeError(
+                    f"LLM call failed [{route_result.tier} / {route_result.model}]: "
+                    f"Client error '429 Too Many Requests' for url '{url}'"
+                )
+                continue
+            resp.raise_for_status()
+            break
+        else:
+            raise last_exc
+
         data = resp.json()
 
         text, in_tok, out_tok = parse_response(provider, data)
@@ -395,7 +414,7 @@ def call(
             from circuit_breaker import audit_token_velocity_circuit
 
             audit_token_velocity_circuit(in_tok, out_tok)
-        except Exception:  # fail-open: circuit breaker is a side-effect check after a successful call; the call's own errors are handled by the outer except below, not this one
+        except Exception:  # noqa: bare-except — circuit breaker audit is a non-critical side-effect; main call already succeeded
             pass
 
         record_success(route_result.model)
