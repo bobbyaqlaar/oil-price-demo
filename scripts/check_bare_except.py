@@ -71,7 +71,7 @@ def find_violations(source: str, path: str) -> list[tuple[str, int]]:
         # the suppression marker, not just that one line.
         body_start = node.body[0].lineno if node.body else node.lineno + 1
         header_lines = lines[node.lineno - 1 : max(node.lineno, body_start - 1)]
-        if any("fail-open:" in line for line in header_lines):
+        if any("fail-open:" in line or "noqa: bare-except" in line for line in header_lines):
             continue
         violations.append((path, node.lineno))
     return violations

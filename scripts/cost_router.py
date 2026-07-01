@@ -397,13 +397,16 @@ def call(
             "/messages" if provider == "anthropic" else path_suffix
         )
 
-        # Retry up to 3 times on 429 rate-limit with exponential backoff.
-        # CI evals fire several requests in quick succession and Groq's free
-        # tier throttles at ~30 RPM; a short sleep is enough to clear it.
+        # Retry up to 4 times on 429 with full jitter exponential backoff.
+        # Groq free tier (30 RPM) gets saturated when CI eval jobs fire
+        # back-to-back; jitter breaks the thundering-herd retry pattern.
+        import random
+
         last_exc: Exception = RuntimeError("no attempts made")
-        for attempt in range(3):
+        for attempt in range(4):
             if attempt:
-                time.sleep(2**attempt * 5)  # 10s, 20s
+                wait = (2**attempt) * 5 + random.uniform(0, 3)
+                time.sleep(wait)
             resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
             if resp.status_code == 429:
                 last_exc = RuntimeError(
@@ -425,7 +428,7 @@ def call(
             from circuit_breaker import audit_token_velocity_circuit
 
             audit_token_velocity_circuit(in_tok, out_tok)
-        except Exception:  # noqa: bare-except — circuit breaker audit is a non-critical side-effect; main call already succeeded
+        except Exception:  # fail-open: circuit breaker audit is a non-critical side-effect; main call already succeeded
             pass
 
         record_success(route_result.model)
