@@ -47,14 +47,26 @@ class OilPriceWorkflowInput:
 
 
 def _run(coro):
-    """Run a coroutine from synchronous Streamlit context."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run a coroutine from synchronous Streamlit context.
+
+    Uses asyncio.run() so it works in Streamlit's non-main threads
+    (Python 3.10+ deprecated get_event_loop() in non-main threads).
+    """
+    return asyncio.run(coro)
 
 
 async def _connect():
+    """Return a cached Temporal client, creating one per session if needed."""
     from temporalio.client import Client
 
-    return await Client.connect(TEMPORAL_ADDRESS, tls=TEMPORAL_TLS)
+    if (
+        "temporal_client" not in st.session_state
+        or st.session_state.temporal_client is None
+    ):
+        st.session_state.temporal_client = await Client.connect(
+            TEMPORAL_ADDRESS, tls=TEMPORAL_TLS
+        )
+    return st.session_state.temporal_client
 
 
 async def _start_workflow(series: list[float], workflow_id: str) -> str:
@@ -74,17 +86,17 @@ async def _start_workflow(series: list[float], workflow_id: str) -> str:
 
 async def _get_status(workflow_id: str) -> dict:
     """Return a status dict without blocking on result()."""
-    from temporalio.service import RPCError
-
-    client = await _connect()
-    handle = client.get_workflow_handle(workflow_id)
     try:
+        client = await _connect()
+        handle = client.get_workflow_handle(workflow_id)
         desc = await handle.describe()
         status = str(desc.status).split(".")[
             -1
         ]  # e.g. "RUNNING", "COMPLETED", "FAILED"
         return {"status": status, "id": workflow_id}
-    except RPCError as exc:
+    except (
+        Exception
+    ) as exc:  # fail-open: network/RPC errors become ERROR status, not a crash
         return {"status": "ERROR", "error": str(exc)}
 
 
@@ -120,6 +132,7 @@ for key, default in [
     ("history", []),
     ("hitl_triggered", False),
     ("error", None),
+    ("temporal_client", None),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -217,7 +230,7 @@ if run_btn:
 if cancel_btn and st.session_state.workflow_id:
     try:
         _run(_terminate(st.session_state.workflow_id))
-    except Exception:
+    except Exception:  # fail-open: cancel is best-effort; clear local state regardless
         pass
     st.session_state.workflow_id = None
     st.session_state.last_status = None
@@ -262,25 +275,32 @@ if st.session_state.workflow_id:
             "If the prediction agent flagged this run (anomaly >3\u03c3 or "
             "confidence <0.6), the workflow is paused here waiting for your signal."
         )
-        ca, cb, _ = st.columns([2, 2, 4])
-        with ca:
-            if st.button("\u2705 Approve", type="primary", use_container_width=True):
-                try:
-                    _run(_send_signal(wf_id, approve=True))
-                    st.success("Approval signal sent.")
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Signal failed: {exc}")
-        with cb:
-            if st.button("\u274c Reject", use_container_width=True):
-                try:
-                    _run(_send_signal(wf_id, approve=False))
-                    st.error(
-                        "Rejection signal sent — workflow routes to Dead-Letter Queue."
-                    )
-                    st.rerun()
-                except Exception as exc:
-                    st.error(f"Signal failed: {exc}")
+        if st.session_state.hitl_triggered:
+            st.info("Signal already sent — waiting for workflow to transition.")
+        else:
+            ca, cb, _ = st.columns([2, 2, 4])
+            with ca:
+                if st.button(
+                    "\u2705 Approve", type="primary", use_container_width=True
+                ):
+                    try:
+                        _run(_send_signal(wf_id, approve=True))
+                        st.session_state.hitl_triggered = True
+                        st.success("Approval signal sent.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Signal failed: {exc}")
+            with cb:
+                if st.button("\u274c Reject", use_container_width=True):
+                    try:
+                        _run(_send_signal(wf_id, approve=False))
+                        st.session_state.hitl_triggered = True
+                        st.error(
+                            "Rejection signal sent — workflow routes to Dead-Letter Queue."
+                        )
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Signal failed: {exc}")
 
         st.markdown(
             "_Click \U0001f504 Refresh status in the sidebar to check for completion._"
@@ -296,6 +316,8 @@ if st.session_state.workflow_id:
                 )
                 st.markdown("### Result")
                 st.json(result)
+            else:
+                st.warning("Result not yet available — click 🔄 Refresh status.")
         except Exception as exc:
             st.warning(f"Workflow completed but could not fetch result: {exc}")
 

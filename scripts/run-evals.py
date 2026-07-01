@@ -227,9 +227,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
         from notifier import notify_eval_result
 
         notify_eval_result(avg_score, fail_below, project=project)
-    except (
-        Exception
-    ):  # fail-open: desktop notification failure must not affect eval pass/fail
+    except Exception:  # fail-open: desktop notification failure must not affect eval pass/fail  # noqa: BLE001
         pass
 
     return 0 if passed else 1

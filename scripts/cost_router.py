@@ -408,10 +408,10 @@ def call(
                 wait = (2**attempt) * 5 + random.uniform(0, 3)
                 time.sleep(wait)
             resp = httpx.post(url, json=body, headers=headers, timeout=120.0)
-            if resp.status_code == 429:
+            if resp.status_code in (429, 502, 503):
                 last_exc = RuntimeError(
                     f"LLM call failed [{route_result.tier} / {route_result.model}]: "
-                    f"Client error '429 Too Many Requests' for url '{url}'"
+                    f"HTTP {resp.status_code} for url '{url}'"
                 )
                 continue
             resp.raise_for_status()
