@@ -54,7 +54,7 @@ def _verify_signature(secret: str, body: bytes, signature_header: str) -> bool:
     if not signature_header.startswith("sha256="):
         return False
     expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    provided = signature_header[len("sha256="):]
+    provided = signature_header[len("sha256=") :]
     return hmac.compare_digest(expected, provided)
 
 
@@ -105,7 +105,9 @@ class ReplayWebhookHandler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"ok":true}')
 
     def _replay(self, task_id: str, payload: dict) -> None:
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/runtime")
+        sys.path.insert(
+            0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + "/runtime"
+        )
         from dead_letter import DeadLetterQueue  # type: ignore
         from temporal_replay import make_temporal_replay_handler  # type: ignore
         from temporalio.client import Client  # type: ignore

@@ -1,0 +1,5 @@
+# demo/requirements.txt
+streamlit>=1.35.0
+temporalio>=1.7.0     # Temporal Python SDK — connects to the live worker
+openai>=1.30.0        # optional: used only if GROQ_API_KEY / OPENAI_API_KEY set
+anthropic>=0.28.0     # optional: used only if ANTHROPIC_API_KEY set

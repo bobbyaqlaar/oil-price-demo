@@ -114,7 +114,20 @@ jobs:
         env:
           DATABASE_URL: "postgresql+asyncpg://test:test@localhost:5432/test"
           ENVIRONMENT:  "testing"
-        run: pytest --cov --cov-report=xml -q
+        # pytest exits 5 ("no tests collected") on a brand-new project before
+        # anyone has written a test yet — expected day-one state, not a failure.
+        # `run:` blocks default to `set -e`, which aborts before `code=$?` can
+        # capture pytest's exit — `set +e` first is required for that to work.
+        run: |
+          set +e
+          pytest --cov --cov-report=xml -q
+          code=$?
+          set -e
+          if [ "$code" -eq 5 ]; then
+            echo "ℹ️  No tests collected yet — not failing CI for a fresh project."
+            exit 0
+          fi
+          exit "$code"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

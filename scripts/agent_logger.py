@@ -16,8 +16,6 @@ import json
 import os
 import sys
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Literal, Optional
 
 # ── Types ─────────────────────────────────────────────────────────────────────
@@ -38,18 +36,21 @@ def _project_name() -> str:
     remote = ""
     try:
         import subprocess
+
         remote = subprocess.check_output(
             ["git", "remote", "get-url", "origin"],
-            capture_output=True, text=True, cwd=root
-        ).stdout.strip()
+            text=True,
+            cwd=root,
+        ).strip()
         if remote:
             return remote.rstrip("/").split("/")[-1].removesuffix(".git")
-    except Exception:
+    except Exception:  # fail-open: no git remote / not a git repo / git not installed all fall back to the dir name below
         pass
     return root.name
 
 
 # ── Core logger ───────────────────────────────────────────────────────────────
+
 
 class AgentLogger:
     """
@@ -115,8 +116,9 @@ class AgentLogger:
         # Circuit breaker — import lazily to avoid circular deps
         try:
             from circuit_breaker import audit_token_velocity_circuit
+
             audit_token_velocity_circuit(input_tokens, output_tokens)
-        except Exception:
+        except Exception:  # fail-open: circuit breaker is a side-effect check; it must never prevent the log entry above from being written
             pass
         return entry
 
@@ -154,8 +156,10 @@ class AgentLogger:
         try:
             with self._log_path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
-        except OSError:
-            pass  # read-only filesystem (CI without checkout) — stdout only
+        except (
+            OSError
+        ):  # fail-open: read-only filesystem (CI without checkout) — stdout only
+            pass
 
         return entry
 
@@ -187,7 +191,7 @@ class AgentLogger:
                         entry["hitl_resolved_at"] = ts
                         raw = json.dumps(entry, default=str)
                         updated += 1
-                except Exception:
+                except Exception:  # fail-open: one malformed JSON-lines entry must not abort resolving the rest; raw line is preserved unchanged below either way
                     pass
                 lines.append(raw)
         with self._log_path.open("w", encoding="utf-8") as fh:
@@ -212,7 +216,7 @@ class AgentLogger:
                         and not entry.get("hitl_resolved", True)
                     ):
                         results.append(entry)
-                except Exception:
+                except Exception:  # fail-open: one malformed JSON-lines entry must not abort scanning the rest of the log for unresolved issues
                     pass
         return results
 

@@ -28,3 +28,11 @@ CLAUDE.md
 CLAUDE.md
 .agents/
 .agent-history.log
+
+# AgentSmith — IDE configs (system prompt content)
+.cursorrules
+CLAUDE.md
+.agents/
+.agent-history.log
+.coverage
+coverage.xml

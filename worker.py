@@ -39,8 +39,8 @@ else:
 sys.path.insert(0, str(_runtime_root))
 sys.path.insert(0, str(_runtime_root / "workflows"))
 
-from oil_price_workflow import OilPricePredictionWorkflow  # type: ignore
-from activities import (  # type: ignore
+from oil_price_workflow import OilPricePredictionWorkflow  # type: ignore  # noqa: E402
+from activities import (  # type: ignore  # noqa: E402
     fetch_oil_price_activity,
     run_prediction_activity,
     decide_action_activity,
@@ -93,7 +93,10 @@ async def _run_worker_with_retry(tenant_id: str) -> None:
             client = await Client.connect(address, tls=use_tls)
             break
         except Exception as exc:
-            print(f"[worker] Temporal connect failed ({exc}); retrying in {delay:.0f}s", file=sys.stderr)
+            print(
+                f"[worker] Temporal connect failed ({exc}); retrying in {delay:.0f}s",
+                file=sys.stderr,
+            )
             await asyncio.sleep(delay)
             delay = min(delay * 2, 30.0)
 
@@ -121,7 +124,10 @@ async def main() -> None:
     try:
         import temporalio  # noqa: F401
     except ImportError:
-        print("ERROR: temporalio is not installed. Run: pip install temporalio", file=sys.stderr)
+        print(
+            "ERROR: temporalio is not installed. Run: pip install temporalio",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     await _run_health_server()

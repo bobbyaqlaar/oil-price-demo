@@ -27,18 +27,23 @@ if _agentsmith_dir:
 else:
     _runtime_root = Path(__file__).resolve().parent.parent.parent / "runtime"
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))           # tenant root
-sys.path.insert(0, str(Path(__file__).resolve().parent / "workflows"))  # bare workflow/activity imports
-sys.path.insert(0, str(_runtime_root))                             # framework runtime
-sys.path.insert(0, str(_runtime_root / "workflows"))               # base_workflow etc.
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # tenant root
+sys.path.insert(
+    0, str(Path(__file__).resolve().parent / "workflows")
+)  # bare workflow/activity imports
+sys.path.insert(0, str(_runtime_root))  # framework runtime
+sys.path.insert(0, str(_runtime_root / "workflows"))  # base_workflow etc.
 # ─────────────────────────────────────────────────────────────────────────────
 
 try:
     from temporalio.client import Client
     from temporalio.service import RPCError
 except ImportError:
-    print("ERROR: temporalio not installed. Run: pip install temporalio", file=sys.stderr)
+    print(
+        "ERROR: temporalio not installed. Run: pip install temporalio", file=sys.stderr
+    )
     sys.exit(1)
+
 
 # Define the input dataclass locally so this script doesn't need to import
 # oil_price_workflow.py (which Temporal's sandbox re-imports under strict rules).
@@ -49,18 +54,18 @@ class OilPriceWorkflowInput:
     price_series: list
 
 
-TENANT_ID       = os.environ.get("TENANT_ID", "oil-price-demo")
+TENANT_ID = os.environ.get("TENANT_ID", "oil-price-demo")
 TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
-WORKFLOW_ID     = "oil-price-demo-run-1"
-TASK_QUEUE      = f"agent-tasks-{TENANT_ID}"
-DEFAULT_SERIES  = [70, 71, 69, 72, 95]   # 95 is the deliberate HITL-triggering outlier
+WORKFLOW_ID = "oil-price-demo-run-1"
+TASK_QUEUE = f"agent-tasks-{TENANT_ID}"
+DEFAULT_SERIES = [70, 71, 69, 72, 95]  # 95 is the deliberate HITL-triggering outlier
 
 
 async def main() -> None:
     price_series = DEFAULT_SERIES
     if "--price-series" in sys.argv:
         idx = sys.argv.index("--price-series")
-        price_series = [float(x) for x in sys.argv[idx + 1:]]
+        price_series = [float(x) for x in sys.argv[idx + 1 :]]
 
     use_tls = os.environ.get("TEMPORAL_TLS", "false").lower() == "true"
     print(f"Connecting to Temporal at {TEMPORAL_ADDRESS} (tls={use_tls}) …")
@@ -68,7 +73,9 @@ async def main() -> None:
 
     print(f"Starting workflow {WORKFLOW_ID} on queue {TASK_QUEUE} …")
     print(f"Price series: {price_series}")
-    print("(If 95 is in the series, the HITL gate will trip — run resolve_hitl.py to approve.)\n")
+    print(
+        "(If 95 is in the series, the HITL gate will trip — run resolve_hitl.py to approve.)\n"
+    )
 
     try:
         handle = await client.start_workflow(
@@ -92,7 +99,7 @@ async def main() -> None:
             sys.exit(1)
         raise
 
-    print(f"Workflow started. Waiting for result (may pause at HITL gate) …")
+    print("Workflow started. Waiting for result (may pause at HITL gate) …")
     result = await handle.result()
     print(f"\nResult: {result}")
 

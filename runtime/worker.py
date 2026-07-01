@@ -43,7 +43,10 @@ def main() -> None:
     tenant_id = os.environ.get("TENANT_ID", "")
 
     if not tenant_id:
-        print("[worker] ERROR: TENANT_ID environment variable is required.", file=sys.stderr)
+        print(
+            "[worker] ERROR: TENANT_ID environment variable is required.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     print(f"[worker] Starting {backend} worker for tenant={tenant_id}")

@@ -45,6 +45,7 @@ from typing import Any, Protocol
 
 # ── Direct-API providers (anthropic / openai-compatible) ──────────────────────
 
+
 def infer_provider(base_url: str) -> str:
     """cost_router.py only has a base_url (no separate provider field) — this
     mirrors its existing "anthropic" in base_url check."""
@@ -66,20 +67,31 @@ def build_request(
     treated as OpenAI-compatible (openai, groq, ollama, ...).
     """
     if provider == "anthropic":
-        system = "\n".join(m["content"] for m in messages if m["role"] == "system") or None
+        system = (
+            "\n".join(m["content"] for m in messages if m["role"] == "system") or None
+        )
         user_messages = [m for m in messages if m["role"] != "system"]
         headers = {
             "x-api-key": api_key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
-        body: dict[str, Any] = {"model": model_id, "max_tokens": max_tokens, "messages": user_messages}
+        body: dict[str, Any] = {
+            "model": model_id,
+            "max_tokens": max_tokens,
+            "messages": user_messages,
+        }
         if system:
             body["system"] = system
         return "/v1/messages", headers, body
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    body = {"model": model_id, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+    body = {
+        "model": model_id,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
     return "/chat/completions", headers, body
 
 
@@ -97,6 +109,7 @@ def parse_response(provider: str, data: dict) -> tuple[str, int, int]:
 
 # ── Cloud-native providers (Vertex AI / Azure OpenAI / Bedrock / Huawei ModelArts) ──
 
+
 class CloudProviderAdapter(Protocol):
     """One implementation per cloud-hosted provider. Each owns its own
     credential acquisition, URL templating, and request/response envelope —
@@ -104,7 +117,12 @@ class CloudProviderAdapter(Protocol):
     / AK-SK auth and Bedrock/Vertex/Azure/ModelArts envelopes."""
 
     def build_request(
-        self, model_id: str, messages: list[dict], cfg: dict, max_tokens: int, temperature: float
+        self,
+        model_id: str,
+        messages: list[dict],
+        cfg: dict,
+        max_tokens: int,
+        temperature: float,
     ) -> tuple[str, dict, dict]:
         """Returns (full_url, headers, body)."""
         ...
@@ -114,7 +132,9 @@ class CloudProviderAdapter(Protocol):
         ...
 
 
-def _anthropic_messages_body(model_id: str, messages: list[dict], max_tokens: int) -> dict:
+def _anthropic_messages_body(
+    model_id: str, messages: list[dict], max_tokens: int
+) -> dict:
     system = "\n".join(m["content"] for m in messages if m["role"] == "system") or None
     user_messages = [m for m in messages if m["role"] != "system"]
     body: dict[str, Any] = {
@@ -186,43 +206,78 @@ class VertexAIAdapter:
     )
 
     def build_request(
-        self, model_id: str, messages: list[dict], cfg: dict, max_tokens: int, temperature: float
+        self,
+        model_id: str,
+        messages: list[dict],
+        cfg: dict,
+        max_tokens: int,
+        temperature: float,
     ) -> tuple[str, dict, dict]:
-        project = os.path.expandvars(cfg["project"])  # supports ${VAR} so a project id never has to be committed literally
-        region = cfg.get("region", "us-central1")  # verified working; GCC regions confirmed NOT to serve gemini-2.5-flash, see class docstring
-        publisher = cfg.get("publisher", "google")  # Gemini — first-party on Vertex, no cross-vendor rollout lag
+        project = os.path.expandvars(
+            cfg["project"]
+        )  # supports ${VAR} so a project id never has to be committed literally
+        region = cfg.get(
+            "region", "us-central1"
+        )  # verified working; GCC regions confirmed NOT to serve gemini-2.5-flash, see class docstring
+        publisher = cfg.get(
+            "publisher", "google"
+        )  # Gemini — first-party on Vertex, no cross-vendor rollout lag
         token = self._get_access_token()
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
 
         # `url_template` (models.yaml) overrides the default vendor URL shape
         # entirely — needed for a regional API variant, a private VPC
         # endpoint, or a proxy in front of the Vertex AI API. Falls back to
         # the standard public endpoint when not set.
-        fmt = {"project": project, "region": region, "publisher": publisher, "model_id": model_id}
+        fmt = {
+            "project": project,
+            "region": region,
+            "publisher": publisher,
+            "model_id": model_id,
+        }
         if publisher == "anthropic":
-            url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE_ANTHROPIC).format(**fmt)
+            url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE_ANTHROPIC).format(
+                **fmt
+            )
             body = _anthropic_messages_body(model_id, messages, max_tokens)
         else:
-            url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE_GENERIC).format(**fmt)
+            url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE_GENERIC).format(
+                **fmt
+            )
             body = {
                 "contents": [
-                    {"role": "user" if m["role"] != "assistant" else "model", "parts": [{"text": m["content"]}]}
+                    {
+                        "role": "user" if m["role"] != "assistant" else "model",
+                        "parts": [{"text": m["content"]}],
+                    }
                     for m in messages
                     if m["role"] != "system"
                 ],
-                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": temperature},
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    "temperature": temperature,
+                },
             }
         return url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, int, int]:
-        if "content" in data:  # Anthropic-on-Vertex envelope mirrors the direct Messages API shape
+        if (
+            "content" in data
+        ):  # Anthropic-on-Vertex envelope mirrors the direct Messages API shape
             text = data["content"][0]["text"]
             usage = data.get("usage", {})
             return text, usage.get("input_tokens", 0), usage.get("output_tokens", 0)
         candidate = data["candidates"][0]
         text = candidate["content"]["parts"][0]["text"]
         usage = data.get("usageMetadata", {})
-        return text, usage.get("promptTokenCount", 0), usage.get("candidatesTokenCount", 0)
+        return (
+            text,
+            usage.get("promptTokenCount", 0),
+            usage.get("candidatesTokenCount", 0),
+        )
 
 
 class AzureOpenAIAdapter:
@@ -243,7 +298,12 @@ class AzureOpenAIAdapter:
     )
 
     def build_request(
-        self, model_id: str, messages: list[dict], cfg: dict, max_tokens: int, temperature: float
+        self,
+        model_id: str,
+        messages: list[dict],
+        cfg: dict,
+        max_tokens: int,
+        temperature: float,
     ) -> tuple[str, dict, dict]:
         resource = cfg["resource"]
         deployment = cfg.get("deployment", model_id)
@@ -251,10 +311,17 @@ class AzureOpenAIAdapter:
         api_key = os.environ.get(cfg.get("api_key_env", "AZURE_OPENAI_API_KEY"), "")
 
         url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE).format(
-            resource=resource, deployment=deployment, api_version=api_version, model_id=model_id,
+            resource=resource,
+            deployment=deployment,
+            api_version=api_version,
+            model_id=model_id,
         )
         headers = {"api-key": api_key, "Content-Type": "application/json"}
-        body = {"messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+        body = {
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
         return url, headers, body
 
     def parse_response(self, data: dict) -> tuple[str, int, int]:
@@ -290,19 +357,32 @@ class BedrockAdapter:
     do not assume it works by default.
     """
 
-    _DEFAULT_URL_TEMPLATE = "https://bedrock-runtime.{region}.amazonaws.com/model/{model_id}/invoke"
+    _DEFAULT_URL_TEMPLATE = (
+        "https://bedrock-runtime.{region}.amazonaws.com/model/{model_id}/invoke"
+    )
 
     def build_request(
-        self, model_id: str, messages: list[dict], cfg: dict, max_tokens: int, temperature: float
+        self,
+        model_id: str,
+        messages: list[dict],
+        cfg: dict,
+        max_tokens: int,
+        temperature: float,
     ) -> tuple[str, dict, dict]:
         import boto3
         from botocore.auth import SigV4Auth
         from botocore.awsrequest import AWSRequest
 
-        region = cfg.get("region", "us-east-1")  # broad model coverage; GCC region unverified, see class docstring
-        url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE).format(region=region, model_id=model_id)
+        region = cfg.get(
+            "region", "us-east-1"
+        )  # broad model coverage; GCC region unverified, see class docstring
+        url = cfg.get("url_template", self._DEFAULT_URL_TEMPLATE).format(
+            region=region, model_id=model_id
+        )
 
-        system = "\n".join(m["content"] for m in messages if m["role"] == "system") or None
+        system = (
+            "\n".join(m["content"] for m in messages if m["role"] == "system") or None
+        )
         user_messages = [m for m in messages if m["role"] != "system"]
         body: dict[str, Any] = {
             "anthropic_version": "bedrock-2023-05-31",
@@ -315,7 +395,12 @@ class BedrockAdapter:
 
         session = boto3.Session()
         credentials = session.get_credentials()
-        request = AWSRequest(method="POST", url=url, data=body_bytes, headers={"Content-Type": "application/json"})
+        request = AWSRequest(
+            method="POST",
+            url=url,
+            data=body_bytes,
+            headers={"Content-Type": "application/json"},
+        )
         SigV4Auth(credentials, "bedrock", region).add_auth(request)
         headers = dict(request.headers)
         return url, headers, body
@@ -351,34 +436,53 @@ class HuaweiModelArtsAdapter:
     _DEFAULT_PATH_TEMPLATE = "/v1/infers/{model_id}/chat/completions"
 
     def build_request(
-        self, model_id: str, messages: list[dict], cfg: dict, max_tokens: int, temperature: float
+        self,
+        model_id: str,
+        messages: list[dict],
+        cfg: dict,
+        max_tokens: int,
+        temperature: float,
     ) -> tuple[str, dict, dict]:
         import hashlib
         import hmac
         from datetime import datetime, timezone
 
         endpoint = cfg["endpoint"]
-        path = cfg.get("path_template", self._DEFAULT_PATH_TEMPLATE).format(model_id=model_id)
+        path = cfg.get("path_template", self._DEFAULT_PATH_TEMPLATE).format(
+            model_id=model_id
+        )
         url = f"https://{endpoint}{path}"
-        body = {"messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+        body = {
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
         body_bytes = json.dumps(body).encode()
 
         ak = os.environ.get("HUAWEICLOUD_SDK_AK", "")
         sk = os.environ.get("HUAWEICLOUD_SDK_SK", "")
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         content_sha256 = hashlib.sha256(body_bytes).hexdigest()
-        canonical_request = "\n".join([
-            "POST",
-            path,
-            "",
-            f"content-type:application/json\nhost:{endpoint}\nx-sdk-date:{timestamp}\n",
-            "content-type;host;x-sdk-date",
-            content_sha256,
-        ])
-        string_to_sign = "\n".join([
-            "SDK-HMAC-SHA256", timestamp, hashlib.sha256(canonical_request.encode()).hexdigest()
-        ])
-        signature = hmac.new(sk.encode(), string_to_sign.encode(), hashlib.sha256).hexdigest()
+        canonical_request = "\n".join(
+            [
+                "POST",
+                path,
+                "",
+                f"content-type:application/json\nhost:{endpoint}\nx-sdk-date:{timestamp}\n",
+                "content-type;host;x-sdk-date",
+                content_sha256,
+            ]
+        )
+        string_to_sign = "\n".join(
+            [
+                "SDK-HMAC-SHA256",
+                timestamp,
+                hashlib.sha256(canonical_request.encode()).hexdigest(),
+            ]
+        )
+        signature = hmac.new(
+            sk.encode(), string_to_sign.encode(), hashlib.sha256
+        ).hexdigest()
         headers = {
             "Content-Type": "application/json",
             "X-Sdk-Date": timestamp,
@@ -418,10 +522,17 @@ def get_cloud_adapter(provider: str) -> CloudProviderAdapter:
 
 
 def build_cloud_request(
-    provider: str, model_id: str, messages: list[dict], cfg: dict, max_tokens: int, temperature: float
+    provider: str,
+    model_id: str,
+    messages: list[dict],
+    cfg: dict,
+    max_tokens: int,
+    temperature: float,
 ) -> tuple[str, dict, dict]:
     """Returns (full_url, headers, body) for a cloud-native provider."""
-    return get_cloud_adapter(provider).build_request(model_id, messages, cfg, max_tokens, temperature)
+    return get_cloud_adapter(provider).build_request(
+        model_id, messages, cfg, max_tokens, temperature
+    )
 
 
 def parse_cloud_response(provider: str, data: dict) -> tuple[str, int, int]:

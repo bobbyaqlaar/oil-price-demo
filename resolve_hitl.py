@@ -18,11 +18,13 @@ import sys
 try:
     from temporalio.client import Client
 except ImportError:
-    print("ERROR: temporalio not installed. Run: pip install temporalio", file=sys.stderr)
+    print(
+        "ERROR: temporalio not installed. Run: pip install temporalio", file=sys.stderr
+    )
     sys.exit(1)
 
 TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
-WORKFLOW_ID      = "oil-price-demo-run-1"
+WORKFLOW_ID = "oil-price-demo-run-1"
 
 
 async def main() -> None:

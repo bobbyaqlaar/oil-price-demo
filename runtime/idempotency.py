@@ -46,7 +46,9 @@ class IdempotencyStore:
         elif backend == "postgres":
             self._backend = _PostgresBackend()
         else:
-            raise ValueError(f"Unknown IDEMPOTENCY_BACKEND={backend!r}. Use 'redis' or 'postgres'.")
+            raise ValueError(
+                f"Unknown IDEMPOTENCY_BACKEND={backend!r}. Use 'redis' or 'postgres'."
+            )
 
     def get(self, key: str) -> Optional[Any]:
         """Return cached result for key, or None if not found / expired."""
@@ -60,6 +62,7 @@ class IdempotencyStore:
 class _RedisBackend:
     def __init__(self) -> None:
         import redis  # type: ignore
+
         self._client = redis.from_url(os.environ["REDIS_URL"])
 
     def get(self, key: str) -> Optional[Any]:
@@ -96,6 +99,7 @@ class _PostgresBackend:
 
     def _connect(self):
         import psycopg2  # type: ignore
+
         return psycopg2.connect(self._dsn)
 
     def get(self, key: str) -> Optional[Any]:

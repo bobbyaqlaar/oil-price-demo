@@ -58,7 +58,9 @@ logger = logging.getLogger(__name__)
 # Structured failure categories — not exhaustive/closed (no DB CHECK
 # constraint enforces this list), but these are the ones the framework's
 # own callers use; the Ops Portal renders unknown values as-is.
-REASON_VALIDATION_ERROR = "validation_error"   # e.g. the CRM hallucinated-field-name case
+REASON_VALIDATION_ERROR = (
+    "validation_error"  # e.g. the CRM hallucinated-field-name case
+)
 REASON_TOOL_CALL_ERROR = "tool_call_error"
 REASON_HITL_TIMEOUT = "hitl_timeout"
 REASON_HITL_REJECTED = "hitl_rejected"
@@ -74,6 +76,7 @@ def _notify(tenant_id: str, task_id: str, reason: Optional[str], error: str) -> 
             continue
         try:
             import httpx
+
             httpx.post(url, json={"text": text}, timeout=5.0)
         except Exception as exc:
             logger.debug("DLQ notify via %s failed: %s", env_var, exc)
@@ -88,10 +91,12 @@ class DLQEntry:
     reason: Optional[str] = None
     workflow_id: Optional[str] = None
     gate_id: Optional[str] = None
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     replayed_at: Optional[str] = None
     discarded_at: Optional[str] = None
-    status: str = "pending"   # pending | replayed | discarded
+    status: str = "pending"  # pending | replayed | discarded
 
 
 class DeadLetterQueue:
@@ -112,7 +117,9 @@ class DeadLetterQueue:
 
     _MIGRATED_DSNS: set = set()
 
-    def __init__(self, replay_handler: Optional[Callable[["DLQEntry"], None]] = None) -> None:
+    def __init__(
+        self, replay_handler: Optional[Callable[["DLQEntry"], None]] = None
+    ) -> None:
         self._dsn = os.environ["DATABASE_URL"]
         self._replay_handler = replay_handler
         if self._dsn not in DeadLetterQueue._MIGRATED_DSNS:
@@ -145,20 +152,38 @@ class DeadLetterQueue:
                 # same gotcha as portal/db/schema.sql's budget_cap_usd
                 # (FIXES_AND_CLEANUP.md P2b) — ALTER is what actually
                 # applies these columns to a pre-existing dlq_entries.
-                cur.execute("ALTER TABLE dlq_entries ADD COLUMN IF NOT EXISTS reason TEXT")
-                cur.execute("ALTER TABLE dlq_entries ADD COLUMN IF NOT EXISTS workflow_id TEXT")
-                cur.execute("ALTER TABLE dlq_entries ADD COLUMN IF NOT EXISTS gate_id TEXT")
+                cur.execute(
+                    "ALTER TABLE dlq_entries ADD COLUMN IF NOT EXISTS reason TEXT"
+                )
+                cur.execute(
+                    "ALTER TABLE dlq_entries ADD COLUMN IF NOT EXISTS workflow_id TEXT"
+                )
+                cur.execute(
+                    "ALTER TABLE dlq_entries ADD COLUMN IF NOT EXISTS gate_id TEXT"
+                )
         finally:
             conn.close()
 
     def _connect(self):
         import psycopg2  # type: ignore
+
         return psycopg2.connect(self._dsn)
 
     @staticmethod
     def _row_to_entry(row: tuple) -> DLQEntry:
-        (task_id, tenant_id, payload, error, reason, workflow_id, gate_id,
-         status, created_at, replayed_at, discarded_at) = row
+        (
+            task_id,
+            tenant_id,
+            payload,
+            error,
+            reason,
+            workflow_id,
+            gate_id,
+            status,
+            created_at,
+            replayed_at,
+            discarded_at,
+        ) = row
         return DLQEntry(
             task_id=task_id,
             tenant_id=tenant_id,
@@ -217,8 +242,15 @@ class DeadLetterQueue:
                     ON CONFLICT (task_id) DO NOTHING
                     RETURNING task_id
                     """,
-                    (entry.task_id, entry.tenant_id, json.dumps(payload, default=str), error,
-                     reason, workflow_id, gate_id),
+                    (
+                        entry.task_id,
+                        entry.tenant_id,
+                        json.dumps(payload, default=str),
+                        error,
+                        reason,
+                        workflow_id,
+                        gate_id,
+                    ),
                 )
                 inserted = cur.fetchone() is not None
         finally:

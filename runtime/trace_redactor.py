@@ -34,7 +34,12 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 try:
-    from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor as _OTelSpanProcessor
+    from opentelemetry.sdk.trace import (
+        ReadableSpan,
+        Span,
+        SpanProcessor as _OTelSpanProcessor,
+    )
+
     _HAS_OTEL = True
 except ImportError:
     _HAS_OTEL = False
@@ -56,9 +61,9 @@ _TENANT_ATTRIBUTE = "tenant.id"
 # ── Default secret/PII pattern library (§27) ──────────────────────────────────
 
 _SECRET_PATTERNS = [
-    re.compile(r"sk-ant-[A-Za-z0-9\-]{20,}"),                       # Anthropic API keys
-    re.compile(r"sk-[A-Za-z0-9]{20,}"),                             # OpenAI API keys
-    re.compile(r"Bearer\s+[A-Za-z0-9\-_.~+/]+=*"),                  # Bearer tokens
+    re.compile(r"sk-ant-[A-Za-z0-9\-]{20,}"),  # Anthropic API keys
+    re.compile(r"sk-[A-Za-z0-9]{20,}"),  # OpenAI API keys
+    re.compile(r"Bearer\s+[A-Za-z0-9\-_.~+/]+=*"),  # Bearer tokens
     re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"),  # Email addresses
 ]
 
@@ -92,6 +97,7 @@ def _luhn_valid(digits: str) -> bool:
 def _redact_credit_cards(text: str) -> str:
     def _sub(match: "re.Match") -> str:
         return _REDACTED_MARKER if _luhn_valid(match.group(0)) else match.group(0)
+
     return _CARD_CANDIDATE.sub(_sub, text)
 
 
@@ -107,6 +113,7 @@ def _load_extra_patterns() -> list:
         if candidate.exists():
             try:
                 import yaml  # type: ignore
+
                 data = yaml.safe_load(candidate.read_text()) or {}
                 return [re.compile(p) for p in data.get("patterns", [])]
             except Exception:
@@ -117,6 +124,7 @@ def _load_extra_patterns() -> list:
 
 
 # ── Encrypted HITL blob storage (§27) ─────────────────────────────────────────
+
 
 class HITLBlobStore:
     """
@@ -135,10 +143,9 @@ class HITLBlobStore:
         self.tenant_id = tenant_id
 
     def _key(self) -> bytes:
-        raw = (
-            os.environ.get(f"HITL_ENCRYPTION_KEY_{self.tenant_id.upper()}")
-            or os.environ.get("HITL_ENCRYPTION_KEY", "")
-        )
+        raw = os.environ.get(
+            f"HITL_ENCRYPTION_KEY_{self.tenant_id.upper()}"
+        ) or os.environ.get("HITL_ENCRYPTION_KEY", "")
         if not raw:
             raise RuntimeError(
                 f"No HITL encryption key configured for tenant={self.tenant_id!r}. "
@@ -180,19 +187,39 @@ class HITLBlobStore:
         try:
             if bucket:
                 import boto3  # type: ignore
+
                 s3 = boto3.client("s3")
-                s3.put_object(Bucket=bucket, Key=f"hitl/{self.tenant_id}/{ref}.json", Body=json.dumps(blob))
+                s3.put_object(
+                    Bucket=bucket,
+                    Key=f"hitl/{self.tenant_id}/{ref}.json",
+                    Body=json.dumps(blob),
+                )
             else:
-                blob_dir = Path(os.environ.get("HITL_BLOB_DIR", str(Path(__file__).resolve().parent / ".hitl_blobs")))
+                blob_dir = Path(
+                    os.environ.get(
+                        "HITL_BLOB_DIR",
+                        str(Path(__file__).resolve().parent / ".hitl_blobs"),
+                    )
+                )
                 blob_dir = blob_dir / self.tenant_id
                 blob_dir.mkdir(parents=True, exist_ok=True)
                 (blob_dir / f"{ref}.json").write_text(json.dumps(blob))
             return ref
         except OSError as exc:
-            logger.error("HITL blob persistence failed for tenant=%s ref=%s: %s", self.tenant_id, ref, exc)
+            logger.error(
+                "HITL blob persistence failed for tenant=%s ref=%s: %s",
+                self.tenant_id,
+                ref,
+                exc,
+            )
             return ref
         except Exception as exc:  # e.g. boto3 ClientError — not importable to catch by name unconditionally
-            logger.error("HITL blob persistence failed for tenant=%s ref=%s: %s", self.tenant_id, ref, exc)
+            logger.error(
+                "HITL blob persistence failed for tenant=%s ref=%s: %s",
+                self.tenant_id,
+                ref,
+                exc,
+            )
             return ref
 
 
@@ -206,6 +233,7 @@ def _make_blob_ref(trace_id: str, span_id: str, attr_key: str) -> str:
 
 
 # ── Span processor ────────────────────────────────────────────────────────────
+
 
 class TraceRedactor(_OTelSpanProcessor):
     """
@@ -223,7 +251,9 @@ class TraceRedactor(_OTelSpanProcessor):
                       in an encrypted HITL blob
     """
 
-    def __init__(self, profile: Optional[str] = None, tenant_id: Optional[str] = None) -> None:
+    def __init__(
+        self, profile: Optional[str] = None, tenant_id: Optional[str] = None
+    ) -> None:
         env = profile or get_environment()
         self.profile = {
             "development": "none",
@@ -238,7 +268,9 @@ class TraceRedactor(_OTelSpanProcessor):
         # HITL-flagged span got encrypted with whichever tenant's key the
         # processor happened to be constructed with (FIXES_AND_CLEANUP.md 1.2).
         self.default_tenant_id = tenant_id or os.environ.get("TENANT_ID", "unknown")
-        self.enable_ip_redaction = os.environ.get("ENABLE_IP_REDACTION", "false").lower() == "true"
+        self.enable_ip_redaction = (
+            os.environ.get("ENABLE_IP_REDACTION", "false").lower() == "true"
+        )
         self._extra_patterns = _load_extra_patterns()
         self._blob_stores: dict[str, HITLBlobStore] = {}
 
@@ -260,8 +292,16 @@ class TraceRedactor(_OTelSpanProcessor):
         if not attributes:
             return
 
-        trace_id = format(span.context.trace_id, "032x") if getattr(span, "context", None) else "unknown"
-        span_id = format(span.context.span_id, "016x") if getattr(span, "context", None) else "unknown"
+        trace_id = (
+            format(span.context.trace_id, "032x")
+            if getattr(span, "context", None)
+            else "unknown"
+        )
+        span_id = (
+            format(span.context.span_id, "016x")
+            if getattr(span, "context", None)
+            else "unknown"
+        )
         tenant_id = attributes.get(_TENANT_ATTRIBUTE) or self.default_tenant_id
 
         for key, value in list(attributes.items()):
@@ -283,7 +323,9 @@ class TraceRedactor(_OTelSpanProcessor):
                         # with a dangling blob ref nothing ever wrote to.
                         logger.error(
                             "HITL blob NOT written for tenant=%s ref=%s: %s — payload truncated without compliance backup.",
-                            tenant_id, ref, exc,
+                            tenant_id,
+                            ref,
+                            exc,
                         )
                 attributes[key] = self._truncate(scrubbed, max_chars=50)
 
@@ -300,13 +342,21 @@ class TraceRedactor(_OTelSpanProcessor):
         matches with a short hash (staging — structure preserved, identifiers
         recoverable for correlation); False replaces with a flat marker
         (production — no information retained outside the encrypted blob)."""
-        marker_fn = (lambda m: f"[REDACTED:{_hash8(m.group(0))}]") if hash_identifiers else (lambda m: _REDACTED_MARKER)
+        marker_fn = (
+            (lambda m: f"[REDACTED:{_hash8(m.group(0))}]")
+            if hash_identifiers
+            else (lambda m: _REDACTED_MARKER)
+        )
 
         for pattern in (*_SECRET_PATTERNS, *self._extra_patterns):
             text = pattern.sub(marker_fn, text)
 
-        text = _redact_credit_cards(text) if not hash_identifiers else _CARD_CANDIDATE.sub(
-            lambda m: marker_fn(m) if _luhn_valid(m.group(0)) else m.group(0), text
+        text = (
+            _redact_credit_cards(text)
+            if not hash_identifiers
+            else _CARD_CANDIDATE.sub(
+                lambda m: marker_fn(m) if _luhn_valid(m.group(0)) else m.group(0), text
+            )
         )
 
         if self.enable_ip_redaction:

@@ -1,0 +1,54 @@
+name: "CD: Demo UI — Cloud Run"
+
+# Deploys demo/app.py to a separate Cloud Run service on every push to
+# develop (or main). Completely independent of the worker CD workflow —
+# the demo has no Temporal/Postgres dependency and can be updated at any time.
+
+on:
+  push:
+    branches: ["develop", "main"]
+    paths:
+      - "demo/**"          # only re-deploy when demo/ changes
+
+concurrency:
+  group: cd-demo-${{ github.ref }}
+  cancel-in-progress: true   # safe to cancel: stateless deploy, no in-flight requests to protect
+
+jobs:
+  deploy-demo:
+    name: "Deploy demo UI to Cloud Run"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write   # required for Workload Identity Federation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy oil-price-demo-ui \
+            --source . \
+            --dockerfile demo/Dockerfile \
+            --region ${{ vars.GCP_REGION || \'us-central1\' }} \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 512Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 3 \
+            --set-env-vars "STREAMLIT_THEME_BASE=light"
+          echo "Demo URL: $(gcloud run services describe oil-price-demo-ui \
+            --region ${{ vars.GCP_REGION || \'us-central1\' }} \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --format \'value(status.url)\')"

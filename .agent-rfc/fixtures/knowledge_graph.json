@@ -12,7 +12,7 @@
         "main",
         "healthz"
       ],
-      "last_modified": "2026-06-29T20:05:39Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "worker.py"
     },
     {
@@ -53,7 +53,7 @@
         "_start_temporal_worker",
         "_start_celery_worker"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/worker.py"
     },
     {
@@ -70,7 +70,7 @@
         "_connect",
         "purge_expired"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/idempotency.py"
     },
     {
@@ -85,7 +85,7 @@
         "log_message",
         "_connect"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/replay_webhook_server.py"
     },
     {
@@ -111,14 +111,14 @@
         "_scrub",
         "_truncate"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/trace_redactor.py"
     },
     {
       "node_type": "CodebaseFile",
       "language": "python",
       "symbols": [],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/__init__.py"
     },
     {
@@ -161,7 +161,7 @@
         "_invoke",
         "_post_with_retry"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/llm_gateway.py"
     },
     {
@@ -170,7 +170,7 @@
       "symbols": [
         "get_environment"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/environment.py"
     },
     {
@@ -190,7 +190,7 @@
         "replay",
         "discard"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/dead_letter.py"
     },
     {
@@ -201,7 +201,7 @@
         "handler",
         "_signal"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/temporal_replay.py"
     },
     {
@@ -223,7 +223,7 @@
         "parse_cloud_response",
         "_get_access_token"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/provider_dispatch.py"
     },
     {
@@ -238,7 +238,7 @@
         "_NoopActivity",
         "defn"
       ],
-      "last_modified": "2026-06-29T19:14:46Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "workflows/activities.py"
     },
     {
@@ -273,7 +273,7 @@
         "_judge_case",
         "run_scorecard"
       ],
-      "last_modified": "2026-06-29T20:14:57Z",
+      "last_modified": "2026-06-29T21:18:55Z",
       "id": "scripts/run-evals.py"
     },
     {
@@ -371,11 +371,12 @@
         "route",
         "_build_cloud_route",
         "_local_route",
+        "_route_for_model",
         "call",
         "__init__",
         "__repr__"
       ],
-      "last_modified": "2026-06-29T20:08:19Z",
+      "last_modified": "2026-06-29T21:18:55Z",
       "id": "scripts/cost_router.py"
     },
     {
@@ -386,7 +387,7 @@
         "run_judge",
         "judge_case"
       ],
-      "last_modified": "2026-06-29T20:07:37Z",
+      "last_modified": "2026-06-29T21:18:55Z",
       "id": "scripts/eval_judge.py"
     },
     {
@@ -412,7 +413,7 @@
       "node_type": "CodebaseFile",
       "language": "python",
       "symbols": [],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/workflows/__init__.py"
     },
     {
@@ -431,7 +432,7 @@
         "human_fix_payload",
         "signal"
       ],
-      "last_modified": "2026-06-29T19:12:45Z",
+      "last_modified": "2026-06-29T20:50:44Z",
       "id": "runtime/workflows/base_workflow.py"
     },
     {
@@ -513,6 +514,55 @@
       "pillar": 10,
       "created_at": "2026-06-29T20:16:35Z",
       "id": "cursorrules:pillar:10"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_setup_otel",
+        "_NoopSpan",
+        "_NoopTracer",
+        "PipelineState",
+        "_architect_node",
+        "_developer_node",
+        "_validator_node",
+        "run_pipeline",
+        "__enter__",
+        "__exit__",
+        "set_attribute",
+        "set_status",
+        "record_exception",
+        "start_as_current_span"
+      ],
+      "last_modified": "2026-06-29T20:59:04Z",
+      "id": "scripts/local_agent_stack.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "is_online",
+        "get_llm_endpoint",
+        "require_online",
+        "start_background_watcher",
+        "stop_background_watcher",
+        "_notify_offline",
+        "_notify_recovery",
+        "_run"
+      ],
+      "last_modified": "2026-06-29T20:53:00Z",
+      "id": "scripts/network_watchdog.py"
+    },
+    {
+      "node_type": "CodebaseFile",
+      "language": "python",
+      "symbols": [
+        "_is_noop_body",
+        "find_violations",
+        "main"
+      ],
+      "last_modified": "2026-06-29T20:50:44Z",
+      "id": "scripts/check_bare_except.py"
     }
   ],
   "edges": [

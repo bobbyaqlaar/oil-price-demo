@@ -14,6 +14,8 @@ jobs:
     name: "Eval scorecard"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,11 +44,30 @@ jobs:
         env:
           ANTHROPIC_API_KEY:      ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY:         ${{ secrets.OPENAI_API_KEY }}
-          AGENT_JUDGE_MODEL:      ${{ secrets.AGENT_JUDGE_MODEL || 'claude-3-5-sonnet-20241022' }}
+          GROQ_API_KEY:           ${{ secrets.GROQ_API_KEY }}
+          GITHUB_TOKEN:           ${{ secrets.GITHUB_TOKEN }}
+          # AGENT_MODEL_ARCHITECT/JUDGE_MODEL: prefer secrets if set; fall
+          # back to GitHub Models (free, GITHUB_TOKEN already available in
+          # every Actions run — no extra key needed). Rotation order when
+          # a model is rate-limited or unavailable: gpt-oss-120b →
+          # gpt-oss-20b → qwen3-32b (set the secret to override).
+          AGENT_MODEL_ARCHITECT:  ${{ secrets.AGENT_MODEL_ARCHITECT || 'openai/gpt-oss-120b' }}
+          AGENT_MODEL_COMPLEX:    ${{ secrets.AGENT_MODEL_COMPLEX || 'openai/gpt-oss-20b' }}
+          AGENT_JUDGE_MODEL:      ${{ secrets.AGENT_JUDGE_MODEL || 'openai/gpt-oss-120b' }}
           AGENT_PHOENIX_ENDPOINT: ${{ secrets.AGENT_PHOENIX_ENDPOINT || '' }}
           AGENT_OWNER_ID:         ${{ secrets.AGENT_OWNER_ID || 'ci@agenticframework' }}
-        # exit 2 = <3 golden cases → skip gracefully (not a failure)
-        run: python3 scripts/run-evals.py --fail-below 0.80
+        # exit 2 = <3 golden cases OR all cases failed due to API errors
+        # (e.g. Groq 429, missing key) → skip gracefully, not a CI failure.
+        run: |
+          set +e
+          python3 scripts/run-evals.py --fail-below 0.80
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "ℹ️  Eval scorecard skipped (exit 2) — too few cases or all API errors."
+            exit 0
+          fi
+          exit "$code"
 
       - name: Upload eval results
         if: always()
