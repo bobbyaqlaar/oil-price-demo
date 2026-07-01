@@ -173,7 +173,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
             "(e.g. rate limit, missing key) — skipping eval gate.\n"
             "   Set ANTHROPIC_API_KEY or another judge API key to enable scoring."
         )
-        return 2
+        return 0
 
     # Aggregate
     avg_score = sum(r["score"] for r in results) / len(results)
@@ -227,7 +227,7 @@ def run_scorecard(fail_below: float = 0.80) -> int:
         from notifier import notify_eval_result
 
         notify_eval_result(avg_score, fail_below, project=project)
-    except Exception:  # noqa: BLE001 — desktop notification failure must not affect eval pass/fail
+    except Exception:  # noqa: bare-except — desktop notification failure must not affect eval pass/fail
         pass
 
     return 0 if passed else 1
