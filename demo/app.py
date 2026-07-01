@@ -59,7 +59,10 @@ async def _connect():
     """Return a cached Temporal client, creating one per session if needed."""
     from temporalio.client import Client
 
-    if "temporal_client" not in st.session_state or st.session_state.temporal_client is None:
+    if (
+        "temporal_client" not in st.session_state
+        or st.session_state.temporal_client is None
+    ):
         st.session_state.temporal_client = await Client.connect(
             TEMPORAL_ADDRESS, tls=TEMPORAL_TLS
         )
@@ -91,7 +94,9 @@ async def _get_status(workflow_id: str) -> dict:
             -1
         ]  # e.g. "RUNNING", "COMPLETED", "FAILED"
         return {"status": status, "id": workflow_id}
-    except Exception as exc:  # fail-open: network/RPC errors become ERROR status, not a crash
+    except (
+        Exception
+    ) as exc:  # fail-open: network/RPC errors become ERROR status, not a crash
         return {"status": "ERROR", "error": str(exc)}
 
 
@@ -275,7 +280,9 @@ if st.session_state.workflow_id:
         else:
             ca, cb, _ = st.columns([2, 2, 4])
             with ca:
-                if st.button("\u2705 Approve", type="primary", use_container_width=True):
+                if st.button(
+                    "\u2705 Approve", type="primary", use_container_width=True
+                ):
                     try:
                         _run(_send_signal(wf_id, approve=True))
                         st.session_state.hitl_triggered = True
