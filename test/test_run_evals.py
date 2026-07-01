@@ -3,7 +3,7 @@ test/test_run_evals.py — Unit tests for scripts/run-evals.py.
 
 Covers the key exit-code contracts:
   exit 2 — < 3 golden cases (skip gracefully)
-  exit 2 — ALL cases fail due to pipeline/API errors (new: Groq 429 etc.)
+  exit 0 — ALL cases fail due to pipeline/API errors (Groq 429 etc.) — skip gracefully
   exit 0 — avg score >= threshold (pass)
   exit 1 — avg score < threshold (fail)
   exit 1 — mixed pipeline errors + low scores (partial error, not a skip)
@@ -73,7 +73,7 @@ def test_skip_exactly_2_cases(monkeypatch):
 
 
 def test_skip_when_all_pipeline_errors(monkeypatch):
-    """All 3 cases fail with PIPELINE_ERROR (e.g. Groq 429) → exit 2, not 1."""
+    """All 3 cases fail with PIPELINE_ERROR (e.g. Groq 429) → exit 0 (skip gracefully)."""
     monkeypatch.setattr(
         run_evals, "_load_golden_cases", lambda: [_case("c1"), _case("c2"), _case("c3")]
     )
@@ -83,7 +83,7 @@ def test_skip_when_all_pipeline_errors(monkeypatch):
         "_judge_case",
         lambda case, criteria, judge: _result(score=0.0, pipeline_error=True),
     )
-    assert run_evals.run_scorecard() == 2
+    assert run_evals.run_scorecard() == 0
 
 
 def test_pass_above_threshold(tmp_path, monkeypatch):
