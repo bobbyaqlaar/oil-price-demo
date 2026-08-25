@@ -50,24 +50,58 @@ def _notify_plyer(title: str, message: str, timeout: int = 8) -> bool:
 # ── Enhancement: osascript on macOS ───────────────────────────────────────────
 
 
+# The notification text is DATA, read out of `argv` — never spliced into the
+# script source.
+#
+# This used to f-string `message` and `title` straight into
+# `display notification "{message}" with title "..."`. AppleScript has no
+# escaping there, so a `"` in the text closes the literal and everything after
+# it is executed as AppleScript — including `do shell script`, which runs an
+# arbitrary command as whoever the agent is running as. Confirmed by running
+# it, not inferred: a crafted message wrote a file to /tmp.
+#
+# The reachable source matters more than the shape. `notify_hitl_required` is
+# called by scripts/multi_agent_system.py's `hitl_node` with
+# `detail="\n".join(state["issues"])` — the Validator AGENT's own model output.
+# So a model that echoes an injected instruction, or merely quotes the code it
+# is reviewing, reaches a shell on the operator's machine. Model output is
+# untrusted input; this is the receiving side of that boundary, and it is the
+# side that has to hold (review-levers 2.7).
+_OSASCRIPT_NOTIFY = """on run argv
+  display notification (item 1 of argv) with title (item 2 of argv) \
+    subtitle (item 3 of argv) sound name (item 4 of argv)
+end run"""
+
+
 def _notify_osascript(title: str, message: str) -> bool:
-    """Display a macOS system notification with sound via osascript."""
+    """Display a macOS system notification with sound via osascript.
+
+    Returns whether osascript actually accepted it. It used to return True
+    unconditionally: `subprocess.run` without `check=` does not raise on a
+    non-zero exit, so a script osascript rejected reported as delivered. This
+    is the FALLBACK path — plyer has already failed by the time it runs — so a
+    false "delivered" meant the last chance to reach a human was spent and
+    nothing said otherwise.
+    """
     try:
         import platform
 
         if platform.system() != "Darwin":
             return False
-        script = (
-            f'display notification "{message}" '
-            f'with title "{APP_NAME}" subtitle "{title}" '
-            f'sound name "{NOTIFY_SOUND}"'
-        )
-        subprocess.run(
-            ["osascript", "-e", script],
+        proc = subprocess.run(
+            [
+                "osascript",
+                "-e",
+                _OSASCRIPT_NOTIFY,
+                str(message),
+                APP_NAME,
+                str(title),
+                NOTIFY_SOUND,
+            ],
             capture_output=True,
             timeout=5,
         )
-        return True
+        return proc.returncode == 0
     except Exception:
         return False
 

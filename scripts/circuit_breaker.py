@@ -14,6 +14,7 @@ To reset manually:
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import sys
@@ -51,10 +52,21 @@ _EMPTY_STATE: dict = {
 }
 
 
+def _empty_state() -> dict:
+    """A fresh empty state, not a view onto the constant.
+
+    `dict(_EMPTY_STATE)` is a SHALLOW copy: the dict is new, `state["events"]`
+    is the constant's own list. One append mutated it and every later "empty"
+    state came back holding the previous run's events — on exactly the path
+    this fallback exists for, a missing or unwritable cache file.
+    """
+    return copy.deepcopy(_EMPTY_STATE)
+
+
 def _load_state() -> dict:
     path = _cache_path()
     if not path.exists():
-        return dict(_EMPTY_STATE)
+        return _empty_state()
     try:
         with path.open() as fh:
             state = json.load(fh)
@@ -64,7 +76,7 @@ def _load_state() -> dict:
                 state[k] = type(v)()
         return state
     except Exception:
-        return dict(_EMPTY_STATE)
+        return _empty_state()
 
 
 def _save_state(state: dict) -> None:
@@ -119,32 +131,42 @@ def audit_token_velocity_circuit(
     }
     state["events"].append(event)
 
-    # ── Tier 1: burst (5-min rolling window) ──────────────────────────────────
-    cutoff = now - BURST_WINDOW_SECONDS
-    window_events = [e for e in state["events"] if e["ts"] >= cutoff]
-    window_tokens = sum(e["input_tokens"] + e["output_tokens"] for e in window_events)
-    if window_tokens > BURST_TOKEN_LIMIT:
-        msg = (
-            f"Burst limit exceeded: {window_tokens:,} tokens in last 5 minutes "
-            f"(limit: {BURST_TOKEN_LIMIT:,}). Cooling down."
-        )
-        _save_state(state)
-        _notify_if_requested(notify, "BURST", msg)
-        raise CircuitBreakerTripped("BURST", msg)
-
-    # ── Tier 2: monthly spend ─────────────────────────────────────────────────
+    # ── Bill this call before EITHER tier can raise ───────────────────────────
+    #
+    # The burst check used to sit between the append above and the accrual
+    # below, and it raises. So a burst-tripping call had its TOKENS recorded
+    # and its DOLLARS dropped: the monthly accumulator silently skipped every
+    # call that tripped tier 1 — the heaviest bursts, the ones a spend cap most
+    # needs to see. The money was spent either way; the provider had already
+    # answered by the time this function runs.
     this_cost = (
         input_tokens * COST_PER_INPUT_TOKEN + output_tokens * COST_PER_OUTPUT_TOKEN
     )
     state["monthly_accumulated_spend_usd"] = (
         state.get("monthly_accumulated_spend_usd", 0.0) + this_cost
     )
-    # Prune old events (only keep last 24 h for storage efficiency)
+
+    cutoff = now - BURST_WINDOW_SECONDS
+    window_events = [e for e in state["events"] if e["ts"] >= cutoff]
+    window_tokens = sum(e["input_tokens"] + e["output_tokens"] for e in window_events)
+
+    # Prune old events (only keep last 24 h for storage efficiency). After the
+    # window sum above, which reads a 5-minute slice and is unaffected.
     state["events"] = [e for e in state["events"] if e["ts"] >= now - 86400]
 
     monthly_total = state["monthly_accumulated_spend_usd"]
     _save_state(state)
 
+    # ── Tier 1: burst (5-min rolling window) ──────────────────────────────────
+    if window_tokens > BURST_TOKEN_LIMIT:
+        msg = (
+            f"Burst limit exceeded: {window_tokens:,} tokens in last 5 minutes "
+            f"(limit: {BURST_TOKEN_LIMIT:,}). Cooling down."
+        )
+        _notify_if_requested(notify, "BURST", msg)
+        raise CircuitBreakerTripped("BURST", msg)
+
+    # ── Tier 2: monthly spend ─────────────────────────────────────────────────
     if monthly_total > MONTHLY_USD_CAP:
         msg = (
             f"Monthly spend cap exceeded: ${monthly_total:.4f} "
